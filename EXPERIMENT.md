@@ -193,7 +193,16 @@ After 60 seconds, the program will exit automatically.
 
 YUV video could be very large. If you want to play it, you can use `ffmpeg` to convert it to mp4 format like this: `ffmpeg -i outvideo.yuv outvideo.mp4`. Keep the YUV file if you want to do the evaluation.
 
-For mahimahi, run the sender from within the mahimahi shell.
+For mahimahi, run the sender from within the mahimahi shell: 
+``` bash
+# Start Mahimahi shell
+mm-delay 40 mm-loss uplink 0 mm-loss downlink 0 mm-link ../traces/Starlink/starlink_trace_14.log ../traces/12mbps
+
+# Run sender from within Mahimahi shell
+./peerconnection_gcc sender_gcc.json 2>sender_warn.log
+```
+
+
 
 ## Evaluate
 
