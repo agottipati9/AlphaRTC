@@ -1,50 +1,50 @@
 {
-  "serverless_connection": {
-      "autoclose": 60,
-      "sender": {
-          "enabled": false
-      },
-      "receiver": {
-          "enabled": true,
-          "listening_ip": "0.0.0.0",
-          "listening_port": 8000
-      }
-  },
-  "bwe_feedback_duration": 200,
-  "video_source": {
-      "video_disabled": {
-          "enabled": true
-      },
-      "webcam": {
-          "enabled": false
-      },
-      "video_file": {
-          "enabled": false
-      }
-  },
-  "audio_source": {
-      "microphone": {
-          "enabled": false
-      },
-      "audio_file": {
-          "enabled": true,
-          "file_path": "./videos/silent-1s.wav"
-      }
-  },
-  "save_to_file": {
-      "enabled": true,
-      "audio": {
-          "file_path": "outaudio.wav"
-      },
-      "video": {
-          "width": 1920,
-          "height": 1080,
-          "fps": 30,
-          "file_path": "unlimited-60s.yuv"
-      }
-  },
-  "logging": {
-      "enabled": true,
-      "log_output_path": "receiver.log"
-  }
+    "serverless_connection": {
+        "autoclose": 60,
+        "sender": {
+            "enabled": false
+        },
+        "receiver": {
+            "enabled": true,
+            "listening_ip": "0.0.0.0",
+            "listening_port": 8000
+        }
+    },
+    "bwe_feedback_duration": 200,
+    "video_source": {
+        "video_disabled": {
+            "enabled": true
+        },
+        "webcam": {
+            "enabled": false
+        },
+        "video_file": {
+            "enabled": false
+        }
+    },
+    "audio_source": {
+        "microphone": {
+            "enabled": false
+        },
+        "audio_file": {
+            "enabled": true,
+            "file_path": "./videos/silent-1s.wav"
+        }
+    },
+    "save_to_file": {
+        "enabled": true,
+        "audio": {
+            "file_path": "./outputs/outaudio.wav"
+        },
+        "video": {
+            "width": 1920,
+            "height": 1080,
+            "fps": 30,
+            "file_path": "./outputs/unlimited-60s.yuv"
+        }
+    },
+    "logging": {
+        "enabled": true,
+        "log_output_path": "./outputs/receiver.log"
+    }
 }

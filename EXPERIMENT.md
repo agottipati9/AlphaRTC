@@ -74,54 +74,54 @@ Notes:
 
 ``` json
 {
-    "serverless_connection": {
-        "autoclose": 60,
-        "sender": {
-            "enabled": false
-        },
-        "receiver": {
-            "enabled": true,
-            "listening_ip": "0.0.0.0",
-            "listening_port": 8000
-        }
-    },
-    "bwe_feedback_duration": 200,
-    "video_source": {
-        "video_disabled": {
-            "enabled": true
-        },
-        "webcam": {
-            "enabled": false
-        },
-        "video_file": {
-            "enabled": false
-        }
-    },
-    "audio_source": {
-        "microphone": {
-            "enabled": false
-        },
-        "audio_file": {
-            "enabled": true,
-            "file_path": "./videos/silent-1s.wav"
-        }
-    },
-    "save_to_file": {
-        "enabled": true,
-        "audio": {
-            "file_path": "outaudio.wav"
-        },
-        "video": {
-            "width": 1920,
-            "height": 1080,
-            "fps": 30,
-            "file_path": "unlimited-60s.yuv"
-        }
-    },
-    "logging": {
-        "enabled": true,
-        "log_output_path": "receiver.log"
-    }
+  "serverless_connection": {
+      "autoclose": 60,
+      "sender": {
+          "enabled": false
+      },
+      "receiver": {
+          "enabled": true,
+          "listening_ip": "0.0.0.0",
+          "listening_port": 8000
+      }
+  },
+  "bwe_feedback_duration": 200,
+  "video_source": {
+      "video_disabled": {
+          "enabled": true
+      },
+      "webcam": {
+          "enabled": false
+      },
+      "video_file": {
+          "enabled": false
+      }
+  },
+  "audio_source": {
+      "microphone": {
+          "enabled": false
+      },
+      "audio_file": {
+          "enabled": true,
+          "file_path": "./videos/silent-1s.wav"
+      }
+  },
+  "save_to_file": {
+      "enabled": true,
+      "audio": {
+          "file_path": "./outputs/outaudio.wav"
+      },
+      "video": {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "file_path": "./outputs/unlimited-60s.yuv"
+      }
+  },
+  "logging": {
+      "enabled": true,
+      "log_output_path": "./outputs/receiver.log"
+  }
 }
 ```
 
@@ -129,49 +129,49 @@ Notes:
 
 ``` json
 {
-    "serverless_connection": {
-        "autoclose": 60,
-        "sender": {
-            "enabled": true,
-            "dest_ip": "0.0.0.0",
-            "dest_port": 8000
-        },
-        "receiver": {
-            "enabled": false
-        }
-    },
-    "bwe_feedback_duration": 200,
-    "video_source": {
-        "video_disabled": {
-            "enabled": false
-        },
-        "webcam": {
-            "enabled": false
-        },
-        "video_file": {
-            "enabled": true,
-            "width": 1920,
-            "height": 1080,
-            "fps": 30,
-            "file_path": "./videos/1080p.yuv"
-        }
-    },
-    "audio_source": {
-        "microphone": {
-            "enabled": false
-        },
-        "audio_file": {
-            "enabled": true,
-            "file_path": "./videos/silent-1s.wav"
-        }
-    },
-    "save_to_file": {
-        "enabled": false
-    },
-    "logging": {
-        "enabled": true,
-        "log_output_path": "sender.log"
-    }
+  "serverless_connection": {
+      "autoclose": 60,
+      "sender": {
+          "enabled": true,
+          "dest_ip": "100.64.0.1",
+          "dest_port": 8000
+      },
+      "receiver": {
+          "enabled": false
+      }
+  },
+  "bwe_feedback_duration": 200,
+  "video_source": {
+      "video_disabled": {
+          "enabled": false
+      },
+      "webcam": {
+          "enabled": false
+      },
+      "video_file": {
+          "enabled": true,
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "file_path": "./videos/1080p.yuv"
+      }
+  },
+  "audio_source": {
+      "microphone": {
+          "enabled": false
+      },
+      "audio_file": {
+          "enabled": true,
+          "file_path": "./videos/silent-1s.wav"
+      }
+  },
+  "save_to_file": {
+      "enabled": false
+  },
+  "logging": {
+      "enabled": true,
+      "log_output_path": "./outputs/sender.log"
+  }
 }
 ```
 
@@ -193,43 +193,7 @@ After 60 seconds, the program will exit automatically.
 
 YUV video could be very large. If you want to play it, you can use `ffmpeg` to convert it to mp4 format like this: `ffmpeg -i outvideo.yuv outvideo.mp4`. Keep the YUV file if you want to do the evaluation.
 
-### Run HRCC Experiment
-
-[A Hybrid Receiver-side Congestion Control Scheme for Web Real-time Communication](https://dl.acm.org/doi/abs/10.1145/3458305.3479970).
-
-[HRCC Source Code](https://github.com/thegreatwb/HRCC)
-
-We conduct HRCC experiments on the `hrcc_baseline` branch.
-
-Build:
-
-``` bash
-git checkout hrcc_baseline
-git submodule init  
-git submodule update
-# after this, related code will be in `HRCC/` directory
-
-gn gen out/Default --args='is_debug=false'
-
-# compiling steps refer to `make docker-peerconnection_serverless`
-ninja -C out/Default peerconnection_serverless
-cp out/Default/peerconnection_serverless HRCC/peerconnection_serverless.origin
-cp examples/peerconnection/serverless/peerconnection_serverless HRCC/
-cp modules/third_party/cmdinfer/*.py HRCC/
-
-export LD_LIBRARY_PATH=`pwd`/modules/third_party/onnxinfer/lib:$LD_LIBRARY_PATH
-cd HRCC/
-```
-
-HRCC need numpy and torch. You should install them before running HRCC.
-
-Make shure you have proper `LD_LIBRARY_PATH` before running HRCC. You can set it like above.
-
-Then you can run it in `HRCC/` directory similar to GCC experiment. The configuration file can also use `receiver_gcc.json` and `sender_gcc.json`.
-
-Receiver: `rm ./receiver.log; ./peerconnection_serverless receiver_gcc.json 2>receiver_warn.log 1>/dev/null`
-
-Sender: `rm ./sender.log; ./peerconnection_serverless sender_gcc.json 2>sender_warn.log 1>/dev/null`
+For mahimahi, run the sender from within the mahimahi shell.
 
 ## Evaluate
 
@@ -276,7 +240,7 @@ options:
 Example:
 
 ``` bash
-./evaluate.py -r receiver.log -s sender.log --vmaf ./vmaf --sender_video ./videos/1080p.yuv --receiver_video ./unlimited-60s.yuv
+./evaluate.py -r ./outputs/receiver.log -s ./outputs/sender.log --vmaf ./vmaf --sender_video ./videos/1080p.yuv --receiver_video ./outputs/unlimited-60s.yuv
 ```
 
 ### Notes
