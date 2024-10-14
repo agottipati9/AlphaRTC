@@ -142,6 +142,8 @@ def get_video_score(args):
                 delays.append(int(line.split()[-1]))
 
     print("Frame delay measurement count:", len(delays))
+    if len(delays) == 0:
+        delays = [0]
     print("Mean per-frame delay (ms):", np.mean(delays))
     print("Median per-frame delay (ms):", np.median(delays))
     print("P95 per-frame delay (ms):", np.percentile(delays, 95))
@@ -193,8 +195,14 @@ def get_video_score(args):
 
     # rm ./source_dropped1.yuv
     # rm ./source_dropped2.yuv
-    subprocess.check_call('rm ./source_dropped1.yuv', shell=True)
-    subprocess.check_call('rm ./source_dropped2.yuv', shell=True)
+    try:
+        subprocess.call('rm ./source_dropped1.yuv', shell=True)
+    except:
+        pass
+    try:
+        subprocess.call('rm ./source_dropped2.yuv', shell=True)
+    except:
+        pass
     print("")
 
     # Frame Drop Score

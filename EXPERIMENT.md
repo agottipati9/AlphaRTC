@@ -8,34 +8,6 @@
 
 WebRTC defaultly uses VP8 as the video codec. You can modify `media/engine/internal_encoder_factory.cc` to select video codec. We modified it to use VP9 as the video codec by default.
 
-### Build with H264
-
-Refer to [webrtc.gni](./webrtc.gni), H264 requires ffmpeg built with H264 support:
-
-``` gni
-# Enable this to build OpenH264 encoder/FFmpeg decoder. This is supported on
-# all platforms except Android and iOS. Because FFmpeg can be built
-# with/without H.264 support, |ffmpeg_branding| has to separately be set to a
-# value that includes H.264, for example "Chrome". If FFmpeg is built without
-# H.264, compilation succeeds but |H264DecoderImpl| fails to initialize.
-# CHECK THE OPENH264, FFMPEG AND H.264 LICENSES/PATENTS BEFORE BUILDING.
-# http://www.openh264.org, https://www.ffmpeg.org/
-#
-# Enabling H264 when building with MSVC is currently not supported, see
-# bugs.webrtc.org/9213#c13 for more info.
-rtc_use_h264 =
-    proprietary_codecs && !is_android && !is_ios && !(is_win && !is_clang)
-```
-
-If ffmpeg requirement is satisfied, we can enable H264 by setting `proprietary_codecs=true` in `gn args` like this:
-
-1. `gn gen out/H264 --args='is_debug=false proprietary_codecs=true'`
-2. `ninja -C out/H264 peerconnection_gcc`
-
-Artifacts are in `out/H264/` directory. We can use `peerconnection_gcc` to run with gcc.
-
-`mkdir run` and `cp out/H264/peerconnection_gcc run/ && cd run`, then run it.
-
 ### Build without H264
 
 Without H264, we will use VP9 as the video codec.
@@ -70,47 +42,16 @@ Artifacts are in `out/VP9/` directory. We can use `peerconnection_gcc` to run wi
 # Download video with frame number
 wget https://media.xiph.org/video/derf/twitch/H264/GTAV.mp4
 
+# Cut video to 60 seconds
+ffmpeg -i GTAV.mp4 -ss 0 -t 60 -c copy GTAV-60.mp4
+
 # Convert video to YUV format with 30fps frame rate
 # ATTENTION: After this, the frame number will only have even numbers
-ffmpeg -i GTAV.mp4 -filter:v fps=30 -f yuv4mpegpipe -pix_fmt yuv420p 1080p.yuv
-```
-
-##### Youtube Video Example
-
-``` bash
-# Download video from Youtube
-yt-dlp -f "bv[height<=?720]" https://www.youtube.com/watch?v=LXb3EKWsInQ -o "720p.%(ext)s"
-
-# Cut video to 20 seconds
-ffmpeg -i 720p.webm -t 20 -map 0 -c copy 720p-20s.webm
-
-# Convert video to YUV format with 10fps frame rate
-ffmpeg -i 720p-20s.webm -filter:v fps=10 -f yuv4mpegpipe -pix_fmt yuv420p 720p-20s.yuv
+ffmpeg -i GTAV-60.mp4 -filter:v fps=30 -f yuv4mpegpipe -pix_fmt yuv420p 1080p.yuv
 
 # --- If you don't want to use audio, you can generate a silent audio file like this ---
 # Generate a 1 second silent audio file.
 ffmpeg -f lavfi -i anullsrc -t 1 -c:a pcm_s16le silent-1s.wav
-
-# --- If you want to use audio, you can download audio from Youtube like this ---
-# Download audio
-yt-dlp -f "ba" https://www.youtube.com/watch?v=LXb3EKWsInQ -o "sound.%(ext)s"
-
-# Cut audio to 20 seconds
-ffmpeg -i sound.webm -t 20 -map 0 -c copy sound-20s.webm
-
-# Convert audio to wav format
-ffmpeg -i sound-20s.webm sound-20s.wav
-```
-
-##### Manually Draw Frame Number Example
-
-``` bash
-# Download Minecraft video (1920x1080, 60fps)
-wget https://media.xiph.org/video/derf/twitch/y4m/MINECRAFT.y4m
-
-# Convert video to 960x540 YUV format with 30fps frame rate 
-# Add frame number at the bottom of the video
-ffmpeg -i MINECRAFT.y4m -t 60 -filter:v fps=30,scale=-1:540,"drawtext=text='%{frame_num}': start_number=1: x=(w-tw)/2: y=h-(2*lh): fontcolor=white: fontsize=48: box=1: boxcolor=0x00000000@1" -f yuv4mpegpipe -pix_fmt yuv420p 540p-60s.yuv
 ```
 
 **Attention:**
@@ -162,7 +103,7 @@ Notes:
         },
         "audio_file": {
             "enabled": true,
-            "file_path": "silent-1s.wav"
+            "file_path": "./videos/silent-1s.wav"
         }
     },
     "save_to_file": {
@@ -192,7 +133,7 @@ Notes:
         "autoclose": 60,
         "sender": {
             "enabled": true,
-            "dest_ip": "100.64.0.1",
+            "dest_ip": "0.0.0.0",
             "dest_port": 8000
         },
         "receiver": {
@@ -212,7 +153,7 @@ Notes:
             "width": 1920,
             "height": 1080,
             "fps": 30,
-            "file_path": "1080p.yuv"
+            "file_path": "./videos/1080p.yuv"
         }
     },
     "audio_source": {
@@ -221,7 +162,7 @@ Notes:
         },
         "audio_file": {
             "enabled": true,
-            "file_path": "silent-1s.wav"
+            "file_path": "./videos/silent-1s.wav"
         }
     },
     "save_to_file": {
@@ -335,7 +276,7 @@ options:
 Example:
 
 ``` bash
-./evaluate.py -r receiver.log -s sender.log --vmaf ./vmaf --sender_video ./1080p.yuv --receiver_video ./unlimited-60s.yuv
+./evaluate.py -r receiver.log -s sender.log --vmaf ./vmaf --sender_video ./videos/1080p.yuv --receiver_video ./unlimited-60s.yuv
 ```
 
 ### Notes
