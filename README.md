@@ -35,29 +35,46 @@
     </tr>
 </table>
 
+
 ## Motivation
 
 AlphaRTC is a fork of Google's WebRTC project using ML-based bandwidth estimation, delivered by the OpenNetLab team. By equipping WebRTC with a more accurate bandwidth estimator, our mission is to eventually increase the quality of transmission.
 
 AlphaRTC replaces Google Congestion Control (GCC) with two customized congestion control interfaces, PyInfer and ONNXInfer. The PyInfer provides an opportunity to load external bandwidth estimator written by Python. The external bandwidth estimator could be based on ML framework, like PyTorch or TensorFlow, or a pure Python algorithm without any dependencies. And the ONNXInfer is an ML-powered bandwidth estimator, which takes in an ONNX model to make bandwidth estimation more accurate. ONNXInfer is proudly powered by Microsoft's [ONNXRuntime](https://github.com/microsoft/onnxruntime).
 
+If you are preparing a publication and need to introduce OpenNetLab or AlphaRTC, kindly consider citing the following paper:
+
+```latex
+@inproceedings{eo2022opennetlab,
+  title={Opennetlab: Open platform for rl-based congestion control for real-time communications},
+  author={Eo, Jeongyoon and Niu, Zhixiong and Cheng, Wenxue and Yan, Francis Y and Gao, Rui and Kardhashi, Jorina and Inglis, Scott and Revow, Michael and Chun, Byung-Gon and Cheng, Peng and Xiong, Yongqiang},
+  booktitle={Proceedings of the 6th Asia-Pacific Workshop on Networking},
+  pages={70--75},
+  year={2022}
+}
+```
+
+
+
 ## Environment
 
 **We recommend you directly fetch the pre-provided Docker images from `opennetlab.azurecr.io/alphartc` or [Github release](https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz)**
 
 ### From docker registry
+
 ``` bash
 docker pull opennetlab.azurecr.io/alphartc
 docker image tag opennetlab.azurecr.io/alphartc alphartc
 ```
 
 ### From github release
+
 ``` bash
 wget https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz
 docker load -i alphartc.tar.gz
 ```
 
-Ubuntu 18.04, 20.04, and 22.04 are the only officially supported distros at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
+Ubuntu 18.04 or 20.04 is the only officially supported distro at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
 
 ## Compilation
 
@@ -92,6 +109,7 @@ To compile AlphaRTC, please refer to the following steps
    You should then be able to see two Docker images, `alphartc` and `alphartc-compile` using `sudo docker images`
 
 ### Option 2: Compile from Scratch
+
 If you don't want to use Docker, or have other reasons to compile from scratch (e.g., you want a native Windows build), you may use this method.
 
 Note: all commands below work for both Linux (sh) and Windows (pwsh), unless otherwise specified
@@ -107,34 +125,31 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
     ```
 
 3. Sync the dependencies
+
     ```shell
     cd AlphaRTC
     gclient sync
     mv src/* .
     ```
 
-   Next, run `./install-build-deps.sh` to install build dependencies (it is copied from a more recent WebRTC repo because
-   `build/install-build-deps.sh` only supports Ubuntu <=20.04).
-
 4. Generate build rules
-    ```shell
-    # Debug build
-    gn gen out/Default
-
-    # or Release build
-    gn gen out/Default --args='is_debug=false'
-    ```
 
     _Windows users_: Please use __x64 Native Tools Command Prompt for VS2017__. The clang version comes with the project is 9.0.0, hence incompatible with VS2019. In addition, environmental variable `DEPOT_TOOLS_WIN_TOOLSCHAIN` has to be set to `0` and `GYP_MSVS_VERSION` has to be set to `2017`.
 
+    ```shell
+    gn gen out/Default
+    ```
 
 5. Compile
+
     ```shell
-    ninja -C out/Default peerconnection_gcc
+    ninja -C out/Default peerconnection_serverless
     ```
+
     For Windows users, we also provide a GUI version. You may compile it via
+
     ```shell
-    ninja -C out/Default peerconnection_gcc
+    ninja -C out/Default peerconnection_serverless_win_gui
     ```
 
 ## Demo
@@ -210,7 +225,7 @@ This section describes required fields for the json configuration file.
 
 ##### PyInfer
 
-The default bandwidth estimator is PyInfer, You should implement your Python class named `Estimator` with required methods `report_states` and `get_estimated_bandwidth` in Python file `BandwidthEstimator.py ` and put this file in your workspace.
+The default bandwidth estimator is PyInfer, You should implement your Python class named `Estimator` with required methods `report_states` and `get_estimated_bandwidth` in Python file `BandwidthEstimator.py` and put this file in your workspace.
 There is an example of Estimator with fixed estimated bandwidth 1Mbps. Here is an example [BandwidthEstimator.py](examples/peerconnection/serverless/corpus/BandwidthEstimator.py).
 
 ```python
@@ -243,20 +258,21 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 - **onnx**
   - **onnx_model_path**: The path of the [onnx](https://www.onnxruntime.ai/) model
 
-
 #### Run peerconnection_serverless
+
 - Dockerized environment
 
     To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
 
-
     PyInfer:
+
     ```shell
     sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver_pyinfer.json
     sudo docker exec alphartc peerconnection_serverless sender_pyinfer.json
     ```
 
     ONNXInfer:
+
     ``` shell
     sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
     sudo docker exec alphartc peerconnection_serverless sender.json
@@ -265,19 +281,21 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 - Bare metal
 
     If you compiled your own binary, you can also run it on your bare-metal machine.
-    
+
     - Linux users:
         1. Copy the provided corpus to a new directory
 
             ```shell
             cp -r examples/peerconnection/serverless/corpus/* /path/to/your/runtime
             ```
+
         2. Copy the essential dynanmic libraries and add them to searching directory
 
             ```shell
             cp modules/third_party/onnxinfer/lib/*.so /path/to/your/dll
             export LD_LIBRARY_PATH=/path/to/your/dll:$LD_LIBRARY_PATH
             ```
+
         3. Start the receiver and the sender
 
             ```shell
@@ -285,18 +303,21 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
             /path/to/alphartc/out/Default/peerconnection ./receiver.json
             /path/to/alphartc/out/Default/peerconnection ./sender.json
             ```
+
     - Windows users:
         1. Copy the provided corpus to a new directory
 
             ```shell
             cp -Recursive examples/peerconnection/serverless/corpus/* /path/to/your/runtime
             ```
+
         2. Copy the essential dynanmic libraries and add them to searching directory
 
             ```shell
             cp modules/third_party/onnxinfer/bin/*.dll /path/to/your/dll
             set PATH=/path/to/your/dll;%PATH%
             ```
+
         3. Start the receiver and the sender
 
             ```shell
@@ -307,7 +328,7 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 
 ## Who Are We
 
-The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity.
+The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity. 
 
 ## WebRTC
 

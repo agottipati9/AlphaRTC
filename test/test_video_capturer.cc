@@ -22,10 +22,6 @@ namespace test {
 TestVideoCapturer::~TestVideoCapturer() = default;
 
 void TestVideoCapturer::OnFrame(const VideoFrame& original_frame) {
-  // No adaptations needed, just return the frame as is.
-  broadcaster_.OnFrame(original_frame);
-
-  /*
   int cropped_width = 0;
   int cropped_height = 0;
   int out_width = 0;
@@ -65,7 +61,6 @@ void TestVideoCapturer::OnFrame(const VideoFrame& original_frame) {
     // No adaptations needed, just return the frame as is.
     broadcaster_.OnFrame(frame);
   }
-  */
 }
 
 rtc::VideoSinkWants TestVideoCapturer::GetSinkWants() {

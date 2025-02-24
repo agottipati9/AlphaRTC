@@ -10,6 +10,7 @@
 
 #include "modules/congestion_controller/include/receive_side_congestion_controller.h"
 
+#include "api/alphacc_config.h"
 #include "modules/pacing/packet_router.h"
 #include "modules/remote_bitrate_estimator/include/bwe_defines.h"
 #include "modules/remote_bitrate_estimator/remote_bitrate_estimator_abs_send_time.h"
@@ -142,6 +143,19 @@ void ReceiveSideCongestionController::OnReceivedPacket(
     // Receive-side BWE.
     remote_bitrate_estimator_.IncomingPacket(arrival_time_ms, payload_size,
                                              header);
+  }
+}
+
+void ReceiveSideCongestionController::OnReceivedPacketWithType(
+    int64_t arrival_time_ms,
+    size_t payload_size,
+    const RTPHeader& header,
+    MediaType media_type) {
+  if (media_type == MediaType::AUDIO) {
+    remote_estimator_proxy_.IncomingPacket(arrival_time_ms, payload_size, header);
+  }
+  else {
+    OnReceivedPacket(arrival_time_ms, payload_size, header);
   }
 }
 

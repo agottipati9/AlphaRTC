@@ -205,35 +205,36 @@ def get_video_score(args):
         pass
     print("")
 
-    # Frame Drop Score
-    read_frames = []
-    with open(args.sender_log, 'r') as sender_log:
-        for line in sender_log:
-            if 'FRAME READ' in line:
-                read_frames.append(int(line.split()[-1]))
+    # # Frame Drop Score
+    # read_frames = []
+    # with open(args.sender_log, 'r') as sender_log:
+    #     for line in sender_log:
+    #         if 'FRAME READ' in line:
+    #             read_frames.append(int(line.split()[-1]))
 
-    write_frames = []
-    with open(args.receiver_log, 'r') as receiver_log:
-        for line in receiver_log:
-            if 'FRAME WRITE' in line:
-                write_frames.append(int(line.split()[-1]))
+    # write_frames = []
+    # with open(args.receiver_log, 'r') as receiver_log:
+    #     for line in receiver_log:
+    #         if 'FRAME WRITE' in line:
+    #             write_frames.append(int(line.split()[-1]))
 
-    print("Frame Drop Rate: {:.2f}% ({}/{})".format(
-        (1 - len(write_frames) / len(read_frames)) * 100, len(read_frames) - len(write_frames), len(read_frames)))
+    # print("Frame Drop Rate: {:.2f}% ({}/{})".format(
+    #     (1 - len(write_frames) / len(read_frames)) * 100, len(read_frames) - len(write_frames), len(read_frames)))
 
-    frame_drop_score = 100 * len(write_frames) / len(read_frames)
-    print("")
+    # frame_drop_score = 100 * len(write_frames) / len(read_frames)
+    # print("")
 
-    video_score = 0.2 * frame_delay_score + \
-        0.2 * vmaf_score + 0.3 * frame_drop_score
+    # video_score = 0.2 * frame_delay_score + \
+    #     0.2 * vmaf_score + 0.3 * frame_drop_score
 
-    print("Frame Delay Score: {:.2f}".format(frame_delay_score))
+    # print("Frame Delay Score: {:.2f}".format(frame_delay_score))
     print("VMAF Score: {:.2f}".format(float(vmaf_score)))
-    print("Frame Drop Score: {:.2f}".format(frame_drop_score))
-    print("Video Score: {:.2f}".format(video_score))
+    # print("Frame Drop Score: {:.2f}".format(frame_drop_score))
+    # print("Video Score: {:.2f}".format(video_score))
     print("")
 
-    return video_score
+    #  return video_score
+    return vmaf_score
 
 
 def init_network_argparse():

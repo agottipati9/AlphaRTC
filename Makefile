@@ -7,8 +7,8 @@ target_lib_dir := $(target_dir)/lib
 target_bin_dir := $(target_dir)/bin
 target_pylib_dir := $(target_dir)/pylib
 
-compile_docker := gcc_alphartc-compile
-release_docker := gcc_alphartc
+compile_docker := alphartc-compile
+release_docker := alphartc
 
 host_workdir := `pwd`
 docker_homedir := /app/AlphaRTC/
@@ -31,9 +31,9 @@ sync:
 		output_dir=$(output_dir) \
 		gn_flags=$(gn_flags)
 
-app: peerconnection
+app: peerconnection_serverless
 
-peerconnection:
+peerconnection_serverless:
 	docker run $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
@@ -49,16 +49,18 @@ docker-sync:
 	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
-docker-app: docker-peerconnection
+docker-app: docker-peerconnection_serverless
 
-docker-peerconnection:
-	ninja -C $(output_dir) peerconnection_server
-	ninja -C $(output_dir) peerconnection_client
-	ninja -C $(output_dir) peerconnection_gcc
+docker-peerconnection_serverless:
+	ninja -C $(output_dir) peerconnection_serverless
 
 	mkdir -p $(target_lib_dir)
+	cp modules/third_party/onnxinfer/lib/*.so $(target_lib_dir)
+	cp modules/third_party/onnxinfer/lib/*.so.* $(target_lib_dir)
 
 	mkdir -p $(target_bin_dir)
-	cp $(output_dir)/peerconnection_client $(target_bin_dir)/peerconnection_client
-	cp $(output_dir)/peerconnection_server $(target_bin_dir)/peerconnection_server
-	cp $(output_dir)/peerconnection_gcc $(target_bin_dir)/peerconnection_gcc
+	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
+	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
+
+	mkdir -p $(target_pylib_dir)
+	cp modules/third_party/cmdinfer/*.py $(target_pylib_dir)/

@@ -15,7 +15,8 @@
 
 #include "absl/strings/match.h"
 #include "absl/types/optional.h"
-#include "api/transport/goog_cc_factory.h"
+// Revision for enabling AlphaCC and disabling GCC
+#include "api/transport/alpha_cc_factory.h"
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
@@ -492,6 +493,8 @@ void RtpTransportControllerSend::OnReceivedEstimatedBitrate(uint32_t bitrate) {
   RemoteBitrateReport msg;
   msg.receive_time = Timestamp::Millis(clock_->TimeInMilliseconds());
   msg.bandwidth = DataRate::BitsPerSec(bitrate);
+  RTC_LOG(LS_INFO) << "OnReceivedEstimatedBitrate: " << msg.bandwidth.bps() << " bps"
+                    << " at time " << msg.receive_time.ms() << " ms";
   task_queue_.PostTask([this, msg]() {
     RTC_DCHECK_RUN_ON(&task_queue_);
     if (controller_)
@@ -561,6 +564,23 @@ void RtpTransportControllerSend::OnRemoteNetworkEstimate(
     RTC_DCHECK_RUN_ON(&task_queue_);
     if (controller_)
       PostUpdates(controller_->OnNetworkStateEstimate(estimate));
+  });
+}
+
+void RtpTransportControllerSend::OnApplicationPacket(const rtcp::App& app) {
+  if (app.sub_type() != kAppPacketSubType || app.name() != kAppPacketName) {
+    return;
+  }
+  const BweMessage bwe = *reinterpret_cast<const BweMessage*>(app.data());
+  RTC_LOG(LS_INFO) << "OnApplicationPacket: pacing rate: " << bwe.pacing_rate << " bps"
+                   << ", padding rate: " << bwe.padding_rate << " bps"
+                   << ", target rate: " << bwe.target_rate << " bps"
+                   << ", timestamp: " << bwe.timestamp_ms << " ms";
+  task_queue_.PostTask([this, bwe]() {
+    RTC_DCHECK_RUN_ON(&task_queue_);
+    if (controller_) {
+      PostUpdates(controller_->OnReceiveBwe(bwe));
+    }
   });
 }
 
@@ -647,6 +667,8 @@ void RtpTransportControllerSend::PostUpdates(NetworkControlUpdate update) {
     pacer()->CreateProbeCluster(probe.target_data_rate, probe.id);
   }
   if (update.target_rate) {
+    RTC_LOG(LS_INFO) << "PostUpdates SetTargetRate: " << update.target_rate->target_rate.bps()
+                      << ", PostUpdates SetTargetRate Time: " << Timestamp::Millis(clock_->TimeInMilliseconds()).ms();
     control_handler_->SetTargetRate(*update.target_rate);
     UpdateControlState();
   }

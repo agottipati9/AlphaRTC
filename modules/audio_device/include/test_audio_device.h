@@ -94,6 +94,8 @@ class TestAudioDeviceModule : public AudioDeviceModule {
 	  std::shared_ptr<rtc::Event> audio_started,
       float speed = 1);
 
+
+
   // Returns a Capturer instance that generates a signal of |num_channels|
   // channels where every second frame is zero and every second frame is evenly
   // distributed random noise with max amplitude |max_amplitude|.

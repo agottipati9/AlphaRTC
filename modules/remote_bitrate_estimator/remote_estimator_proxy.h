@@ -17,6 +17,7 @@
 #include "api/transport/network_control.h"
 #include "api/transport/webrtc_key_value_config.h"
 #include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
+#include "modules/third_party/onnxinfer/ONNXInferInterface.h"
 #include "rtc_base/critical_section.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/numerics/sequence_number_util.h"
@@ -73,12 +74,10 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   };
 
   static const int kMaxNumberOfPackets;
-
   void OnPacketArrival(uint16_t sequence_number,
                        int64_t arrival_time,
                        absl::optional<FeedbackRequest> feedback_request)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
-
   void SendPeriodicFeedbacks() RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
   void SendFeedbackOnRequest(int64_t sequence_number,
                              const FeedbackRequest& feedback_request)
@@ -88,7 +87,7 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
       RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
   bool TimeToSendBweMessage() RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
 
-  static int64_t BuildFeedbackPacket(
+  int64_t BuildFeedbackPacket(
       uint8_t feedback_packet_count,
       uint32_t media_ssrc,
       int64_t base_sequence_number,
@@ -119,10 +118,6 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   int64_t send_interval_ms_ RTC_GUARDED_BY(&lock_);
   bool send_periodic_feedback_ RTC_GUARDED_BY(&lock_);
 
-  // Unwraps absolute send times.
-//   uint32_t previous_abs_send_time_ RTC_GUARDED_BY(&lock_);
-//   Timestamp abs_send_timestamp_ RTC_GUARDED_BY(&lock_);
-
   // Bandwidth estimation sending back
   int64_t bwe_sendback_interval_ms_ RTC_GUARDED_BY(&lock_);
   int64_t last_bwe_sendback_ms_ RTC_GUARDED_BY(&lock_);
@@ -131,7 +126,7 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   StatCollect::StatsCollectModule stats_collect_;
   int cycles_ RTC_GUARDED_BY(&lock_);
   uint32_t max_abs_send_time_ RTC_GUARDED_BY(&lock_);
-//   void* onnx_infer_;
+  void* onnx_infer_;
 };
 
 }  // namespace webrtc

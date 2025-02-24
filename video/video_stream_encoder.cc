@@ -412,6 +412,7 @@ void VideoStreamEncoder::SetStartBitrate(int start_bitrate_bps) {
 
 void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
                                           size_t max_data_payload_length) {
+  RTC_LOG(LS_INFO) << "ConfigureEncoder config.codec_type: " << config.codec_type;
   encoder_queue_.PostTask(
       [this, config = std::move(config), max_data_payload_length]() mutable {
         RTC_DCHECK_RUN_ON(&encoder_queue_);
@@ -524,7 +525,8 @@ void VideoStreamEncoder::ReconfigureEncoder() {
   encoder_bitrate_limits_ =
       encoder_->GetEncoderInfo().GetEncoderBitrateLimitsForResolution(
           last_frame_info_->width * last_frame_info_->height);
-
+  RTC_LOG(LS_INFO) << "last frame info width: " << last_frame_info_->width
+                   << ", height: " << last_frame_info_->height;
   if (streams.size() == 1 && encoder_bitrate_limits_) {
     // Bitrate limits can be set by app (in SDP or RtpEncodingParameters) or/and
     // can be provided by encoder. In presence of both set of limits, the final
@@ -555,8 +557,11 @@ void VideoStreamEncoder::ReconfigureEncoder() {
       streams.back().target_bitrate_bps =
           std::min(streams.back().target_bitrate_bps,
                    encoder_bitrate_limits_->max_bitrate_bps);
+      RTC_LOG(LS_INFO) << "stream min_bitrate_bps: " << streams.back().min_bitrate_bps
+                       << ", max_bitrate_bps: " << streams.back().max_bitrate_bps
+                       << ", target_bitrate_bps: " << streams.back().target_bitrate_bps;
     } else {
-      RTC_LOG(LS_WARNING) << "Bitrate limits provided by encoder"
+      RTC_LOG(LS_INFO) << "Bitrate limits provided by encoder"
                           << " (min="
                           << encoder_bitrate_limits_->min_bitrate_bps
                           << ", max="
@@ -572,7 +577,7 @@ void VideoStreamEncoder::ReconfigureEncoder() {
   if (!VideoCodecInitializer::SetupCodec(encoder_config_, streams, &codec)) {
     RTC_LOG(LS_ERROR) << "Failed to create encoder configuration.";
   }
-
+  RTC_LOG(LS_INFO) << "ReConfigureEncoder encoder_config_.codec_type: " << encoder_config_.codec_type;
   char log_stream_buf[4 * 1024];
   rtc::SimpleStringBuilder log_stream(log_stream_buf);
   log_stream << "ReconfigureEncoder:\n";
@@ -848,20 +853,19 @@ void VideoStreamEncoder::OnFrame(const VideoFrame& video_frame) {
   incoming_frame.set_timestamp(
       kMsToRtpTimestamp * static_cast<uint32_t>(incoming_frame.ntp_time_ms()));
 
-  // HACK: For easier frame counting, we don't drop frames in this.
-  // if (incoming_frame.ntp_time_ms() <= last_captured_timestamp_) {
-  //   // We don't allow the same capture time for two frames, drop this one.
-  //   RTC_LOG(LS_WARNING) << "Same/old NTP timestamp ("
-  //                       << incoming_frame.ntp_time_ms()
-  //                       << " <= " << last_captured_timestamp_
-  //                       << ") for incoming frame. Dropping.";
-  //   encoder_queue_.PostTask([this, incoming_frame]() {
-  //     RTC_DCHECK_RUN_ON(&encoder_queue_);
-  //     accumulated_update_rect_.Union(incoming_frame.update_rect());
-  //     accumulated_update_rect_is_valid_ &= incoming_frame.has_update_rect();
-  //   });
-  //   return;
-  // }
+  if (incoming_frame.ntp_time_ms() <= last_captured_timestamp_) {
+    // We don't allow the same capture time for two frames, drop this one.
+    RTC_LOG(LS_WARNING) << "Same/old NTP timestamp ("
+                        << incoming_frame.ntp_time_ms()
+                        << " <= " << last_captured_timestamp_
+                        << ") for incoming frame. Dropping.";
+    encoder_queue_.PostTask([this, incoming_frame]() {
+      RTC_DCHECK_RUN_ON(&encoder_queue_);
+      accumulated_update_rect_.Union(incoming_frame.update_rect());
+      accumulated_update_rect_is_valid_ &= incoming_frame.has_update_rect();
+    });
+    return;
+  }
 
   bool log_stats = false;
   if (current_time_ms - last_frame_log_ms_ > kFrameLogIntervalMs) {
@@ -1069,9 +1073,10 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     last_frame_info_ = VideoFrameInfo(video_frame.width(), video_frame.height(),
                                       video_frame.is_texture());
     RTC_LOG(LS_INFO) << "Video frame parameters changed: dimensions="
-                     << last_frame_info_->width << "x"
-                     << last_frame_info_->height
-                     << ", texture=" << last_frame_info_->is_texture << ".";
+                 << last_frame_info_->width << "x"
+                 << last_frame_info_->height
+                 << ", texture=" << last_frame_info_->is_texture 
+                 << " at time= " << clock_->TimeInMilliseconds() << "ms.";
     // Force full frame update, since resolution has changed.
     accumulated_update_rect_ =
         VideoFrame::UpdateRect{0, 0, video_frame.width(), video_frame.height()};
@@ -1120,8 +1125,8 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     accumulated_update_rect_is_valid_ &= pending_frame_->has_update_rect();
   }
 
-  /*
   if (DropDueToSize(video_frame.size())) {
+    RTC_LOG(LS_INFO) << "Dropping frame. Too large for target bitrate.";
     stream_resource_manager_.OnFrameDroppedDueToSize();
     // Storing references to a native buffer risks blocking frame capture.
     if (video_frame.video_frame_buffer()->type() !=
@@ -1136,7 +1141,6 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     }
     return;
   }
-  */
   stream_resource_manager_.OnMaybeEncodeFrame();
 
   if (EncoderPaused()) {

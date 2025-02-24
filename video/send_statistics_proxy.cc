@@ -1069,16 +1069,6 @@ void SendStatisticsProxy::OnIncomingFrame(int width, int height) {
 
 void SendStatisticsProxy::OnFrameDropped(DropReason reason) {
   rtc::CritScope lock(&crit_);
-  RTC_LOG(LS_WARNING) << "Framedropped for reason " << reason
-                      << " frames number "
-                      << stats_.frames_encoded +
-                             stats_.frames_dropped_by_capturer +
-                             stats_.frames_dropped_by_encoder_queue +
-                             stats_.frames_dropped_by_encoder +
-                             stats_.frames_dropped_by_rate_limiter +
-                             stats_.frames_dropped_by_congestion_window
-                      << " frames encoded " << stats_.frames_encoded
-                      << " frames sent " << stats_.frames_sent;
   switch (reason) {
     case DropReason::kSource:
       ++stats_.frames_dropped_by_capturer;

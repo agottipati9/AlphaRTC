@@ -37,7 +37,7 @@ class RtpPacket;
 namespace rtcp {
 class TransportFeedback;
 class App;
-}
+}  // namespace rtcp
 
 const uint8_t kAppPacketSubType = 1;
 const uint32_t kAppPacketName = ((uint32_t)'r' << 24) | ((uint32_t)'a' << 16) |
@@ -253,7 +253,7 @@ class TransportFeedbackObserver {
 
   virtual void OnAddPacket(const RtpPacketSendInfo& packet_info) = 0;
   virtual void OnTransportFeedback(const rtcp::TransportFeedback& feedback) = 0;
-  // virtual void OnApplicationPacket(const rtcp::App& app){}
+  virtual void OnApplicationPacket(const rtcp::App& app){}
 };
 
 // Interface for PacketRouter to send rtcp feedback on behalf of

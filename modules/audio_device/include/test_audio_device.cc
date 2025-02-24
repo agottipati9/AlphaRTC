@@ -59,10 +59,10 @@ class TestAudioDeviceModuleImpl
                             std::unique_ptr<Renderer> renderer,
                             float speed = 1)
       : TestAudioDeviceModuleImpl(task_queue_factory,
-                            std::move(capturer),
-                            std::move(renderer),
-                            nullptr,
-                            1) {}
+                                  std::move(capturer),
+                                  std::move(renderer),
+                                  nullptr,
+                                  1) {}
 
   TestAudioDeviceModuleImpl(TaskQueueFactory* task_queue_factory,
                             std::unique_ptr<Capturer> capturer,
