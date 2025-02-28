@@ -1,13 +1,5 @@
 # TODO:
-# - run post processing scrip tthat will:
-#   - compute MOS metrics
-#   - remove MP4 videos
-#   - process logs (compute metrics + save packet infos)
-#   - process MOS
-#   - save output metrics to designated results folder (give unique ID)
-#   - remove mp4 files
-# parallelize this script to run 3 workers at once
-
+#  - parallelize this script to run 3 workers at once -- maybe not a good idea since we are also running ffmpeg
 
 import os
 import sys
@@ -73,8 +65,9 @@ def main():
             # run test script
             test_script = f"bash /opt/home_dir/AlphaRTC/scripts/run_mahimahi_one_trace.sh --trace {trace_file} --receiver_config {receiver_path} --sender_config {sender_path} --output_dir {results_path} --delay {delay}"
             run_command(test_script)
-            # TODO: post processing
-            
+            # post processing
+            post_processing_cmd = f"python /opt/home_dir/AlphaRTC/scripts/process_logs.py --output_dir {results_path}"
+            run_command(post_processing_cmd)
             # delete configuration files
             os.remove(sender_path)
             os.remove(receiver_path)
