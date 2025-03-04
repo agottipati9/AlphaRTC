@@ -75,6 +75,37 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
   bool time_to_send_bew_message = TimeToSendBweMessage();
   float estimation = 0;
+
+  // Added for tracking new features
+  // Create packet info structure
+  PacketInfo packet_info;
+  packet_info.arrival_time_ms = arrival_time_ms;
+  packet_info.send_time_ms = send_time_ms;
+  packet_info.payload_size = payload_size;
+  packet_info.sequence_number = header.sequenceNumber;
+  packet_info.ssrc = header.ssrc;
+  packet_info.payload_type = header.payloadType;
+  
+  // Determine packet type
+  packet_info.is_video = IsVideoPacket(header.payloadType);
+  packet_info.is_audio = IsAudioPacket(header.payloadType);
+  packet_info.is_probing = IsProbingPacket(header.payloadType);
+
+  // Add transport sequence number if available
+  if (header.extension.hasTransportSequenceNumber) {
+    packet_info.transport_seq_num = 
+        unwrapper_.Unwrap(header.extension.transportSequenceNumber);
+  } else {
+    packet_info.transport_seq_num = -1;  // Not available
+  }
+  
+  // Add to queue
+  packet_queue_.push(packet_info);
+
+  // TODO:
+  // packet queue should be processed every MI
+  // here we can just log the network state
+  // UpdateMetricsWithPacket(arrival_time_ms, payload_size, header, send_time_ms);
   
   if (header.extension.hasTransportSequenceNumber) {
     seq = unwrapper_.Unwrap(header.extension.transportSequenceNumber);
@@ -189,6 +220,15 @@ void RemoteEstimatorProxy::Process() {
   }
   last_process_time_ms_ = clock_->TimeInMilliseconds();
 
+  RTC_LOG(LS_INFO) << "DEBUG - receiving_rate_bps size: " << mi_metrics_.receiving_rate_bps.size();
+
+
+  // ******* Added for tracking new features ********
+  // Check if we need to process packet queue
+  if (IsTimeForMetricsCalculation(last_process_time_ms_)) {
+    ProcessMetricsInterval();
+  }
+
   SendPeriodicFeedbacks();
 }
 
@@ -203,6 +243,9 @@ void RemoteEstimatorProxy::OnBitrateChanged(int bitrate_bps) {
       kTwccReportSize * 8.0 * 1000.0 / send_config_.max_interval->ms();
   const double kMaxTwccRate =
       kTwccReportSize * 8.0 * 1000.0 / send_config_.min_interval->ms();
+
+  // set previous actions -- GCC (if using ONNX and Pyinfer, this is not needed, we can get output directly)
+  mi_metrics_.updateMetric(mi_metrics_.previous_actions_, bitrate_bps);
 
   // Let TWCC reports occupy 5% of total bandwidth.
   rtc::CritScope cs(&lock_);
@@ -316,6 +359,9 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
     }
     packets.push_back(std::move(feedback_packet));
 
+    // ****** Added for tracking new features ******
+    last_feedback_report_ms_ = clock_->TimeInMilliseconds();
+
     feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
     // Note: Don't erase items from packet_arrival_times_ after sending, in case
     // they need to be re-sent after a reordering. Removal will be handled
@@ -349,6 +395,10 @@ void RemoteEstimatorProxy::SendFeedbackOnRequest(
   RTC_DCHECK(feedback_sender_ != nullptr);
   std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
   packets.push_back(std::move(feedback_packet));
+
+  // ****** Added for tracking new features ******
+  last_feedback_report_ms_ = clock_->TimeInMilliseconds();
+
   feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
 }
 
@@ -426,6 +476,227 @@ uint32_t RemoteEstimatorProxy::GetTtimeFromAbsSendtime(
   uint32_t send_time_ms =
       static_cast<uint32_t>(std::round(send_time_seconds * 1000));
   return send_time_ms;
+}
+
+// Added for tracking new features
+
+bool RemoteEstimatorProxy::IsVideoPacket(uint8_t payload_type) const {
+  // Define payload type ranges for video (adjust based on your codec configuration)
+  return (payload_type >= 96 && payload_type <= 127);
+}
+
+bool RemoteEstimatorProxy::IsAudioPacket(uint8_t payload_type) const {
+  // Define payload type ranges for audio (adjust based on your codec configuration)
+  return (payload_type >= 0 && payload_type <= 95);
+}
+
+bool RemoteEstimatorProxy::IsProbingPacket(uint8_t payload_type) const {
+  // Define payload type for probing packets if applicable
+  return false; // Implement based on your probing mechanism
+}
+
+bool RemoteEstimatorProxy::IsTimeForMetricsCalculation(int64_t now_ms) const {
+  return (last_metrics_calculation_ms_ == -1 || 
+          now_ms - last_metrics_calculation_ms_ >= measurement_interval_ms_);
+}
+
+// Metrics calculation method that processes the queue
+void RemoteEstimatorProxy::ProcessMetricsInterval() {
+  int64_t now_ms = clock_->TimeInMilliseconds();
+  last_metrics_calculation_ms_ = now_ms;
+  
+  if (packet_queue_.empty()) {
+    // No packets to process
+    return;
+  }
+  
+  // Initialize counters and data structures for this interval
+  size_t total_bytes = 0;
+  int total_packets = 0;
+  int video_packets = 0;
+  int audio_packets = 0;
+  int probing_packets = 0;
+  
+  // Delay tracking
+  int64_t sum_delay_ms = 0;
+  int64_t min_delay_ms_this_interval = std::numeric_limits<int64_t>::max();
+  
+  // For interarrival calculation
+  std::vector<int64_t> arrival_times;
+  
+  // For loss detection
+  std::map<int64_t, bool> received_seq_nums;
+  int64_t min_seq = std::numeric_limits<int64_t>::max();
+  int64_t max_seq = -1;
+  
+  // Process all packets in the queue
+  while (!packet_queue_.empty()) {
+    const PacketInfo& packet = packet_queue_.front();
+    
+    // Basic packet statistics
+    total_bytes += packet.payload_size;
+    total_packets++;
+    
+    // Packet type counting
+    if (packet.is_video) video_packets++;
+    if (packet.is_audio) audio_packets++;
+    if (packet.is_probing) probing_packets++;
+    
+    // Store arrival time for interarrival calculation
+    arrival_times.push_back(packet.arrival_time_ms);
+    
+    // Calculate packet delay
+    int64_t packet_delay_ms = packet.arrival_time_ms - packet.send_time_ms;
+    if (packet_delay_ms >= 0) {  // Ignore negative delays
+      sum_delay_ms += packet_delay_ms;
+      
+      // Update minimum delays
+      if (packet_delay_ms < min_delay_ms_overall_) {
+        min_delay_ms_overall_ = packet_delay_ms;
+      }
+      if (packet_delay_ms < min_delay_ms_this_interval) {
+        min_delay_ms_this_interval = packet_delay_ms;
+      }
+    }
+    
+    // Track sequence numbers for loss calculation
+    if (packet.transport_seq_num != -1) {
+      received_seq_nums[packet.transport_seq_num] = true;
+      min_seq = std::min(min_seq, static_cast<int64_t>(packet.transport_seq_num));
+      max_seq = std::max(max_seq, static_cast<int64_t>(packet.transport_seq_num));
+    }
+    
+    // Remove the processed packet
+    packet_queue_.pop();
+  }
+  
+  // Calculate receiving rate
+  double interval_duration_sec = measurement_interval_ms_ / 1000.0;
+  int64_t receiving_rate_bps = static_cast<int64_t>(total_bytes * 8 / interval_duration_sec);
+  
+  // Calculate average delay
+  double avg_delay_ms = (total_packets > 0) ? 
+      static_cast<double>(sum_delay_ms) / total_packets : 0;
+  
+  // Calculate queuing delay
+  double queuing_delay_ms = (total_packets > 0) ? 
+      avg_delay_ms - min_delay_ms_overall_ : 0;
+  
+  // Calculate delay with fixed base
+  const int64_t fixed_base_delay_ms = 200;  // Configurable base delay
+  double delay_ms = (total_packets > 0) ? 
+      avg_delay_ms - fixed_base_delay_ms : 0;
+  
+  // Calculate delay ratio
+  double delay_ratio = (min_delay_ms_this_interval != std::numeric_limits<int64_t>::max() && min_delay_ms_this_interval > 0) ? 
+      avg_delay_ms / min_delay_ms_this_interval : 1.0;
+  
+  // Calculate delay average/min difference
+  double delay_avg_min_difference_ms = (min_delay_ms_this_interval != std::numeric_limits<int64_t>::max()) ? 
+      avg_delay_ms - min_delay_ms_this_interval : 0;
+  
+  // Calculate interarrival metrics
+  double mean_interarrival_ms = 0;
+  double jitter_ms = 0;
+  
+  if (arrival_times.size() > 1) {
+    std::sort(arrival_times.begin(), arrival_times.end());
+    
+    std::vector<double> interarrival_times;
+    for (size_t i = 1; i < arrival_times.size(); i++) {
+      interarrival_times.push_back(arrival_times[i] - arrival_times[i-1]);
+    }
+    
+    // Calculate mean
+    double sum = 0;
+    for (const auto& time : interarrival_times) {
+      sum += time;
+    }
+    mean_interarrival_ms = sum / interarrival_times.size();
+    
+    // Calculate standard deviation (jitter)
+    double sq_sum = 0;
+    for (const auto& time : interarrival_times) {
+      sq_sum += (time - mean_interarrival_ms) * (time - mean_interarrival_ms);
+    }
+    jitter_ms = std::sqrt(sq_sum / interarrival_times.size());
+  }
+  
+  // Calculate loss metrics
+  int lost_packets = 0;
+  double packet_loss_ratio = 0;
+  int average_lost_packets = 0;
+  
+  if (min_seq != std::numeric_limits<int64_t>::max() && max_seq != -1) {
+    // Calculate expected number of packets
+    int expected_packets = max_seq - min_seq + 1;
+    
+    // Calculate lost packets
+    lost_packets = expected_packets - received_seq_nums.size();
+    
+    // Calculate loss ratio
+    packet_loss_ratio = (expected_packets > 0) ? 
+        static_cast<double>(lost_packets) / expected_packets : 0;
+        
+    // For average lost packets, we'd need to track loss bursts
+    // This is a simplified version
+    average_lost_packets = lost_packets;
+  }
+  
+  // Calculate packet type probabilities
+  double video_packets_probability = (total_packets > 0) ? 
+      static_cast<double>(video_packets) / total_packets : 0;
+      
+  double audio_packets_probability = (total_packets > 0) ? 
+      static_cast<double>(audio_packets) / total_packets : 0;
+      
+  double probing_packets_probability = (total_packets > 0) ? 
+      static_cast<double>(probing_packets) / total_packets : 0;
+  
+  // Store computed metrics
+  // rate metrics
+  mi_metrics_.updateMetric(mi_metrics_.receiving_rate_bps, receiving_rate_bps);
+  mi_metrics_.updateMetric(mi_metrics_.received_packets, total_packets);
+  mi_metrics_.updateMetric(mi_metrics_.received_bytes, total_bytes);
+  RTC_LOG(LS_INFO) << "Receiving rate: " << mi_metrics_.vectorToString(mi_metrics_.receiving_rate_bps);
+
+  // delay metrics
+  mi_metrics_.updateMetric(mi_metrics_.queuing_delay_ms, queuing_delay_ms);
+  mi_metrics_.updateMetric(mi_metrics_.delay_ms, delay_ms);
+  mi_metrics_.updateMetric(mi_metrics_.minimum_seen_delay_ms, min_delay_ms_overall_);
+  mi_metrics_.updateMetric(mi_metrics_.delay_ratio, delay_ratio);
+  mi_metrics_.updateMetric(mi_metrics_.delay_avg_min_difference_ms, delay_avg_min_difference_ms);
+  RTC_LOG(LS_INFO) << "Queuing delay: " << mi_metrics_.vectorToString(mi_metrics_.queuing_delay_ms);
+  RTC_LOG(LS_INFO) << "One Way Delay: " << mi_metrics_.vectorToString(mi_metrics_.delay_ms);
+  RTC_LOG(LS_INFO) << "Minimum seen OWD delay: " << mi_metrics_.vectorToString(mi_metrics_.minimum_seen_delay_ms);
+  RTC_LOG(LS_INFO) << "Delay ratio: " << mi_metrics_.vectorToString(mi_metrics_.delay_ratio);
+  RTC_LOG(LS_INFO) << "Delay average min difference: " << mi_metrics_.vectorToString(mi_metrics_.delay_avg_min_difference_ms);
+
+  // jitter metrics
+  mi_metrics_.updateMetric(mi_metrics_.packet_interarrival_time_ms, mean_interarrival_ms);
+  mi_metrics_.updateMetric(mi_metrics_.packet_jitter_ms, jitter_ms);
+  RTC_LOG(LS_INFO) << "Packet interarrival time: " << mi_metrics_.vectorToString(mi_metrics_.packet_interarrival_time_ms);
+  RTC_LOG(LS_INFO) << "Packet jitter: " << mi_metrics_.vectorToString(mi_metrics_.packet_jitter_ms);
+ 
+  // packet loss metrics
+  mi_metrics_.updateMetric(mi_metrics_.packet_loss_ratio, packet_loss_ratio);
+  mi_metrics_.updateMetric(mi_metrics_.average_lost_packets, average_lost_packets);
+  RTC_LOG(LS_INFO) << "Packet loss ratio: " << mi_metrics_.vectorToString(mi_metrics_.packet_loss_ratio);
+  RTC_LOG(LS_INFO) << "Average lost packets: " << mi_metrics_.vectorToString(mi_metrics_.average_lost_packets);
+
+  // packet type metrics
+  mi_metrics_.updateMetric(mi_metrics_.video_packets_probability, video_packets_probability);
+  mi_metrics_.updateMetric(mi_metrics_.audio_packets_probability, audio_packets_probability);
+  mi_metrics_.updateMetric(mi_metrics_.probing_packets_probability, probing_packets_probability);
+  RTC_LOG(LS_INFO) << "Video packets probability: " << mi_metrics_.vectorToString(mi_metrics_.video_packets_probability);
+  RTC_LOG(LS_INFO) << "Audio packets probability: " << mi_metrics_.vectorToString(mi_metrics_.audio_packets_probability);
+  
+  // misc metrics
+  mi_metrics_.updateMetric(mi_metrics_.timesteps_since_last_feedback_ms, static_cast<int64_t>((now_ms - last_feedback_report_ms_) / measurement_interval_ms_));
+  RTC_LOG(LS_INFO) << "Timesteps since last feedback: " << mi_metrics_.vectorToString(mi_metrics_.timesteps_since_last_feedback_ms);
+
+  // previous actions
+  RTC_LOG(LS_INFO) << "Previous actions: " << mi_metrics_.vectorToString(mi_metrics_.previous_actions_);
 }
 
 }  // namespace webrtc
