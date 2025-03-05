@@ -14,6 +14,7 @@
 #include <limits>
 #include <memory>
 #include <utility>
+#include <algorithm>
 
 #include "api/alphacc_config.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
@@ -77,15 +78,20 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   float estimation = 0;
 
   // Added for tracking new features
+  // Handle clock offset
+  if (time_offset_ == -1) {
+    time_offset_ = arrival_time_ms - send_time_ms - expected_min_delay_ms_;
+  }
+
   // Create packet info structure
   PacketInfo packet_info;
-  packet_info.arrival_time_ms = arrival_time_ms;
+  packet_info.arrival_time_ms = arrival_time_ms - time_offset_;
   packet_info.send_time_ms = send_time_ms;
   packet_info.payload_size = payload_size;
   packet_info.sequence_number = header.sequenceNumber;
   packet_info.ssrc = header.ssrc;
   packet_info.payload_type = header.payloadType;
-  
+
   // Determine packet type
   packet_info.is_video = IsVideoPacket(header.payloadType);
   packet_info.is_audio = IsAudioPacket(header.payloadType);
@@ -101,11 +107,6 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   
   // Add to queue
   packet_queue_.push(packet_info);
-
-  // TODO:
-  // packet queue should be processed every MI
-  // here we can just log the network state
-  // UpdateMetricsWithPacket(arrival_time_ms, payload_size, header, send_time_ms);
   
   if (header.extension.hasTransportSequenceNumber) {
     seq = unwrapper_.Unwrap(header.extension.transportSequenceNumber);
@@ -219,9 +220,6 @@ void RemoteEstimatorProxy::Process() {
     return;
   }
   last_process_time_ms_ = clock_->TimeInMilliseconds();
-
-  RTC_LOG(LS_INFO) << "DEBUG - receiving_rate_bps size: " << mi_metrics_.receiving_rate_bps.size();
-
 
   // ******* Added for tracking new features ********
   // Check if we need to process packet queue
@@ -547,6 +545,7 @@ void RemoteEstimatorProxy::ProcessMetricsInterval() {
     
     // Calculate packet delay
     int64_t packet_delay_ms = packet.arrival_time_ms - packet.send_time_ms;
+    packet_delay_ms = std::min(packet_delay_ms, 1000L); // Cap at 1 second
     if (packet_delay_ms >= 0) {  // Ignore negative delays
       sum_delay_ms += packet_delay_ms;
       
@@ -583,9 +582,9 @@ void RemoteEstimatorProxy::ProcessMetricsInterval() {
       avg_delay_ms - min_delay_ms_overall_ : 0;
   
   // Calculate delay with fixed base
-  const int64_t fixed_base_delay_ms = 200;  // Configurable base delay
-  double delay_ms = (total_packets > 0) ? 
-      avg_delay_ms - fixed_base_delay_ms : 0;
+  // const int64_t fixed_base_delay_ms = 200;  // Configurable base delay
+  // double delay_ms = (total_packets > 0) ? 
+  //     avg_delay_ms - fixed_base_delay_ms : 0;
   
   // Calculate delay ratio
   double delay_ratio = (min_delay_ms_this_interval != std::numeric_limits<int64_t>::max() && min_delay_ms_this_interval > 0) ? 
@@ -658,25 +657,25 @@ void RemoteEstimatorProxy::ProcessMetricsInterval() {
   mi_metrics_.updateMetric(mi_metrics_.receiving_rate_bps, receiving_rate_bps);
   mi_metrics_.updateMetric(mi_metrics_.received_packets, total_packets);
   mi_metrics_.updateMetric(mi_metrics_.received_bytes, total_bytes);
-  RTC_LOG(LS_INFO) << "Receiving rate: " << mi_metrics_.vectorToString(mi_metrics_.receiving_rate_bps);
+  RTC_LOG(LS_INFO) << "Receiving rate (bps): " << mi_metrics_.vectorToString(mi_metrics_.receiving_rate_bps);
 
   // delay metrics
   mi_metrics_.updateMetric(mi_metrics_.queuing_delay_ms, queuing_delay_ms);
-  mi_metrics_.updateMetric(mi_metrics_.delay_ms, delay_ms);
+  mi_metrics_.updateMetric(mi_metrics_.delay_ms, avg_delay_ms);
   mi_metrics_.updateMetric(mi_metrics_.minimum_seen_delay_ms, min_delay_ms_overall_);
   mi_metrics_.updateMetric(mi_metrics_.delay_ratio, delay_ratio);
   mi_metrics_.updateMetric(mi_metrics_.delay_avg_min_difference_ms, delay_avg_min_difference_ms);
-  RTC_LOG(LS_INFO) << "Queuing delay: " << mi_metrics_.vectorToString(mi_metrics_.queuing_delay_ms);
-  RTC_LOG(LS_INFO) << "One Way Delay: " << mi_metrics_.vectorToString(mi_metrics_.delay_ms);
-  RTC_LOG(LS_INFO) << "Minimum seen OWD delay: " << mi_metrics_.vectorToString(mi_metrics_.minimum_seen_delay_ms);
+  RTC_LOG(LS_INFO) << "Queuing delay (ms): " << mi_metrics_.vectorToString(mi_metrics_.queuing_delay_ms);
+  RTC_LOG(LS_INFO) << "One Way Delay (ms): " << mi_metrics_.vectorToString(mi_metrics_.delay_ms);
+  RTC_LOG(LS_INFO) << "Minimum seen OWD delay (ms): " << mi_metrics_.vectorToString(mi_metrics_.minimum_seen_delay_ms);
   RTC_LOG(LS_INFO) << "Delay ratio: " << mi_metrics_.vectorToString(mi_metrics_.delay_ratio);
-  RTC_LOG(LS_INFO) << "Delay average min difference: " << mi_metrics_.vectorToString(mi_metrics_.delay_avg_min_difference_ms);
+  RTC_LOG(LS_INFO) << "Delay average min difference (ms): " << mi_metrics_.vectorToString(mi_metrics_.delay_avg_min_difference_ms);
 
   // jitter metrics
   mi_metrics_.updateMetric(mi_metrics_.packet_interarrival_time_ms, mean_interarrival_ms);
   mi_metrics_.updateMetric(mi_metrics_.packet_jitter_ms, jitter_ms);
-  RTC_LOG(LS_INFO) << "Packet interarrival time: " << mi_metrics_.vectorToString(mi_metrics_.packet_interarrival_time_ms);
-  RTC_LOG(LS_INFO) << "Packet jitter: " << mi_metrics_.vectorToString(mi_metrics_.packet_jitter_ms);
+  RTC_LOG(LS_INFO) << "Packet interarrival time (ms): " << mi_metrics_.vectorToString(mi_metrics_.packet_interarrival_time_ms);
+  RTC_LOG(LS_INFO) << "Packet jitter (ms): " << mi_metrics_.vectorToString(mi_metrics_.packet_jitter_ms);
  
   // packet loss metrics
   mi_metrics_.updateMetric(mi_metrics_.packet_loss_ratio, packet_loss_ratio);

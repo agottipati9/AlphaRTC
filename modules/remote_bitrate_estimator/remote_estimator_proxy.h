@@ -37,7 +37,7 @@ class TransportFeedback;
 struct PacketInfo {
     // Basic packet data
     int64_t arrival_time_ms;
-    int64_t send_time_ms;
+    uint32_t send_time_ms;
     size_t payload_size;
     uint16_t sequence_number;
     uint32_t ssrc;
@@ -156,15 +156,18 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
 // ********* for tracking new features *********
 std::queue<PacketInfo> packet_queue_;
 
- 
+ // Handle clock offset
+ int64_t time_offset_ = -1;
+ int64_t expected_min_delay_ms_ = 40; // Default value ie. 10ms
   
   // Measurement interval tracking
   int64_t last_metrics_calculation_ms_ = -1;
   int64_t measurement_interval_ms_ = 60;  // Default 60ms
   int64_t last_feedback_report_ms_ = 0;
+  
 
   // Metrics state
-  int64_t min_delay_ms_overall_ = std::numeric_limits<int64_t>::max();
+  int64_t min_delay_ms_overall_ = 1000;
 
   // Methods for metrics calculation
   void ProcessMetricsInterval();
@@ -187,7 +190,7 @@ struct MIMetrics {
   // Delay metrics (OWD)
   std::vector<double> queuing_delay_ms = std::vector<double>(DEFAULT_HISTORY_SIZE, 0.0);
   std::vector<double> delay_ms = std::vector<double>(DEFAULT_HISTORY_SIZE, 0.0);
-  std::vector<int64_t> minimum_seen_delay_ms = std::vector<int64_t>(DEFAULT_HISTORY_SIZE, std::numeric_limits<int64_t>::max());
+  std::vector<int64_t> minimum_seen_delay_ms = std::vector<int64_t>(DEFAULT_HISTORY_SIZE, 1000);
   std::vector<double> delay_ratio = std::vector<double>(DEFAULT_HISTORY_SIZE, 1.0);
   std::vector<double> delay_avg_min_difference_ms = std::vector<double>(DEFAULT_HISTORY_SIZE, 0.0);
   
@@ -229,7 +232,6 @@ std::string vectorToString(const std::vector<T>& vec) {
         }
     }
     ss << "]";
-    ss << " (size: " << vec.size() << ")";
     return ss.str();
 }
 };

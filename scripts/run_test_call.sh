@@ -33,6 +33,10 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+echo "Clearing the output directory"
+rm -rf ${OUTPUT_DIR}
+mkdir -p ${OUTPUT_DIR}
+
 echo "Running the test call"
 
 # Start Receiver
