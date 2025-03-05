@@ -43,7 +43,12 @@ case $key in
 esac
 done
 
-trap EXIT SIGINT SIGTERM
+function cleanup {
+    echo "Cleaning up"
+    pkill -f peerconnection_gcc || true
+}
+
+trap cleanup EXIT SIGINT SIGTERM
 
 delay=${DELAY}
 up_pkt_loss=0
@@ -60,6 +65,7 @@ sleep "${SETUP_DELAY}"
 ) &
 # wait for clean up
 sleep "${CALL_DURATION}"  # let the call run for 2 minutes
+cleanup
 sleep "${CLEANUP_DELAY}"  # wait for everything to close before starting the next one
 
 # convert output video to mp4, delete the yuv file, and artifacts
