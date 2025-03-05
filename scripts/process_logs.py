@@ -7,6 +7,7 @@ import json
 import numpy as np
 import sys
 import subprocess
+import re
 
 def run_command(command):
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -19,31 +20,82 @@ class NetInfo(object):
         self.net_path = net_path
         self.net_data = None
 
+        # TODO: we need to parse the state info we just added to logs
+        self.net_states = None
+
         self.parse_net_log()
+        
 
     def parse_net_log(self):
         if not self.net_path or not os.path.exists(self.net_path):
             raise ValueError("Error net path")
 
-        ret = []
+        json_data = []
+        current_packet = None
+        
         with open(self.net_path, 'r') as f:
             for line in f.readlines():
-                if ("remote_estimator_proxy.cc" not in line):
+                net_states = {}
+                if "remote_estimator_proxy.cc" not in line:
                     continue
-                try:
-                    raw_json = line[line.index('{'):]
-                    json_network = json.loads(raw_json)
-                    # it seems no use
-                    del json_network["mediaInfo"]
-                    ret.append(json_network)
-                # can not parser json
-                except ValueError as e:
-                    pass
-                # other exception that need to care
-                except Exception as e:
-                    raise ValueError("Exception when parser json log")
+                
+                # Extract the line number and content
+                match = re.search(r'\(remote_estimator_proxy\.cc:(\d+)\):\s*(.*)', line)
+                if not match:
+                    continue
+                
+                line_num = match.group(1)
+                content = match.group(2).strip()
+                
+                # Try to parse as JSON (packet info)
+                if content.startswith('{'):
+                    try:
+                        json_obj = json.loads(content)
+                        # We'll preserve mediaInfo but mark it as parsed
+                        current_packet = json_obj
+                        json_data.append(json_obj)
+                    except ValueError:
+                        pass
+                    except Exception as e:
+                        raise ValueError(f"Exception when parsing JSON log: {str(e)}")
+                
+                # Parse array metrics
+                elif ":" in content and "[" in content and "]" in content:
+                    try:
+                        metric_name, values_str = content.split(':', 1)
+                        metric_name = metric_name.strip()
+                        
+                        # Extract values from array format [x, y, z]
+                        values_str = values_str.strip()
+                        if values_str.startswith('[') and values_str.endswith(']'):
+                            values_str = values_str[1:-1].strip()
+                            # Convert values to appropriate type (float or int)
+                            values = []
+                            for val in values_str.split(','):
+                                val = val.strip()
+                                if not val:
+                                    continue
+                                try:
+                                    # Try to convert to float first
+                                    if '.' in val:
+                                        values.append(float(val))
+                                    else:
+                                        values.append(int(val))
+                                except ValueError:
+                                    # Keep as string if conversion fails
+                                    values.append(val)
+                            
+                            # Store in net_states
+                            net_states[metric_name] = values
 
-        self.net_data = ret
+                            # Also attach to the current packet if it exists
+                            if current_packet is not None:
+                                if "state_metrics" not in current_packet:
+                                    current_packet["state_metrics"] = {}
+                                current_packet["state_metrics"][metric_name] = values
+                    except Exception as e:
+                        print(f"Warning: Failed to parse metric line: {content}, error: {str(e)}")
+        self.net_data = json_data
 
 
 def eval_network(dst_audio_info: NetInfo):
@@ -261,6 +313,7 @@ if __name__ == "__main__":
     out_path = os.path.join(args.output_dir, "call_metrics.json")
     with open(out_path, 'w') as f:
         f.write(json.dumps(out_dict))
+    
 
     print("Processed call logs.")
     print("Output written to", out_path)
