@@ -479,13 +479,30 @@ uint32_t RemoteEstimatorProxy::GetTtimeFromAbsSendtime(
 // Added for tracking new features
 
 bool RemoteEstimatorProxy::IsVideoPacket(uint8_t payload_type) const {
-  // Define payload type ranges for video (adjust based on your codec configuration)
-  return (payload_type >= 96 && payload_type <= 127);
+  // using VP9
+  if (payload_type == 96 || payload_type == 97 || 
+      payload_type == 98 || payload_type == 99 ||
+      payload_type == 100 || payload_type == 101 ||
+      payload_type == 127 || payload_type == 123 ||
+      payload_type == 125 || payload_type == 122 ||
+      payload_type == 124) {
+    return true;
+  }
+  return false;
 }
 
 bool RemoteEstimatorProxy::IsAudioPacket(uint8_t payload_type) const {
-  // Define payload type ranges for audio (adjust based on your codec configuration)
-  return (payload_type >= 0 && payload_type <= 95);
+  // from SDP
+  if (payload_type == 111 || payload_type == 103 || 
+      payload_type == 104 || payload_type == 9 ||
+      payload_type == 102 || payload_type == 0 ||
+      payload_type == 8 || payload_type == 106 ||
+      payload_type == 105 || payload_type == 13 ||
+      payload_type == 110 || payload_type == 112 ||
+      payload_type == 113 || payload_type == 126) {
+    return true;
+  }
+  return false;
 }
 
 bool RemoteEstimatorProxy::IsProbingPacket(uint8_t payload_type) const {
