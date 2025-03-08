@@ -42,24 +42,30 @@ def set_configuration_files(proc_id, results_path, port=5000):
     return CONFIG_DIR + f"tmp_sender_config_proc_{proc_id}.json", CONFIG_DIR + f"tmp_receiver_config_proc_{proc_id}.json"
 
 def main():
+    # PARAMETERS
+    # - trace_path: path to the directory containing traces
+    # - n_runs: number of times to run each trace
     # load traces
-    trace_path = "/opt/home_dir/toy_trace"
+    trace_path = "/opt/home_dir/network_traces/traces/train/"
     traces = load_traces(trace_path)
-
+    n_runs = 3
+    
     # create unique folder path to store all results
     proc_id = int(time.time())
-    n_runs = 1
     for i in range(0, n_runs):
-        for trace_file in traces:
+        for j, trace_file in enumerate(traces):
+            print(f"Round {i+1}, Running trace: {trace_file}")
             # create output directory
             trace_name = os.path.basename(trace_file) # without extension
             if '.' in trace_file:
                 trace_name = trace_name.split('.')[0]
-            results_path = f"/opt/home_dir/outputs/test_artifacts/RESULTS_RUN_{i}_TRACE_{trace_name}_ID_{proc_id}/"
+            results_path = f"/mydata/outputs/test_artifacts/RESULTS_RUN_{i}_TRACE_{trace_name}_ID_{proc_id}/"
+            # results_path = f"/opt/home_dir/outputs/test_artifacts/RESULTS_RUN_{i}_TRACE_{trace_name}_ID_{proc_id}/"
             if not os.path.exists(results_path):
                 os.makedirs(results_path)
             # update log output paths and port numbers
-            sender_path, receiver_path = set_configuration_files(proc_id, results_path, port=5001)
+            port = 5000 + (i * len(traces) + j)
+            sender_path, receiver_path = set_configuration_files(proc_id, results_path, port=port)
             # sample delay
             delay = random.randint(40, 61)
             # run test script

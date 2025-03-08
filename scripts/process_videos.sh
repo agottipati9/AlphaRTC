@@ -17,11 +17,22 @@ case $key in
 esac
 done
 
-trap EXIT SIGINT SIGTERM
-
 SENDER_DEG_VIDEO=${RESULTS_DIR}/sender_output.mp4
 RECEIVER_DEG_VIDEO=${RESULTS_DIR}/receiver_output.mp4
 TMP_DIR=${RESULTS_DIR}/tmp
+
+function cleanup {
+    echo "Cleaning up"
+    cd /opt/home_dir/Video_Call_MOS/
+    if [ -d ${TMP_DIR} ]; then
+        rm -rf ${TMP_DIR}/*
+    fi
+    rm ${SENDER_DEG_VIDEO} ${RECEIVER_DEG_VIDEO}
+}
+
+
+trap cleanup EXIT SIGINT SIGTERM
+
 # if the tmp directory does not exist, create it
 if [ ! -d ${TMP_DIR} ]; then
     mkdir -p ${TMP_DIR}
