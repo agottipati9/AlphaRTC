@@ -10,7 +10,7 @@
             "enabled": false
         }
     },
-    "bwe_feedback_duration": 200,
+    "bwe_feedback_duration": 50,
     "video_source": {
         "video_disabled": {
             "enabled": false

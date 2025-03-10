@@ -10,10 +10,7 @@
             "listening_port": 8000
         }
     },
-    "bwe_feedback_duration": 200,
-    "onnx": {
-        "onnx_model_path": "/opt/home_dir/AlphaRTC/examples/peerconnection/serverless/corpus/onnx-model.onnx"
-    },
+    "bwe_feedback_duration": 50,
     "video_source": {
         "video_disabled": {
             "enabled": false
