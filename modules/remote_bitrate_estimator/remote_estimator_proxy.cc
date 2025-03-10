@@ -154,6 +154,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
       estimation = onnxinfer::GetBweEstimate(onnx_infer_);
     } else {
       estimation = cmdinfer::GetEstimatedBandwidth();
+      // RTC_LOG(LS_INFO) << "************ USING PYINFER ****************" << "\n" << "Estimated bandwidth: " << estimation;
     }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();

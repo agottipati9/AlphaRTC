@@ -53,7 +53,7 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         request = request_estimated_bandwidth(line)
         if request:
             bandwidth = estimator.get_estimated_bandwidth()
-            ofd.write("{}\n".format(int(bandwidth)).encode("utf-8"))
+            ofd.write("{}\n".format(int(bandwidth)))
             ofd.flush()
             continue
         sys.stdout.write(line)

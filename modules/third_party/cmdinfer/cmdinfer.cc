@@ -31,7 +31,7 @@ void cmdinfer::ReportStates(
 }
 
 float cmdinfer::GetEstimatedBandwidth() {
-    std::uint64_t bandwidth = 0;
+    std::uint64_t bandwidth = 100000;  // default to 0.1 Mbps
     std::cout << RequestBandwidthCommand << std::endl;
     std::cin >> bandwidth;
     return static_cast<float>(bandwidth);

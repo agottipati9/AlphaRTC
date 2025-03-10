@@ -11,9 +11,6 @@
         }
     },
     "bwe_feedback_duration": 200,
-    "onnx": {
-        "onnx_model_path": "/opt/home_dir/AlphaRTC/examples/peerconnection/serverless/corpus/onnx-model.onnx"
-    },
     "video_source": {
         "video_disabled": {
             "enabled": false
