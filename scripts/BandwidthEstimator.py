@@ -1,5 +1,52 @@
 import numpy as np
 import torch
+import torch.nn as nn
+from torch.distributions import Normal
+import numpy as np
+import torch.nn.functional as F
+
+
+class Actor(nn.Module):
+    """Actor (Policy) Model."""
+
+    def __init__(self, state_size, action_size, hidden_size=256, init_w=3e-3, log_std_min=-10, log_std_max=2):
+        """Initialize parameters and build model.
+        Params
+        ======
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
+            seed (int): Random seed
+            fc1_units (int): Number of nodes in first hidden layer
+            fc2_units (int): Number of nodes in second hidden layer
+        """
+        super(Actor, self).__init__()
+
+        self.fc1 = nn.Linear(state_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, action_size)
+
+    def forward(self, state):        
+        x = F.relu(self.fc1(state))
+        x = F.relu(self.fc2(x))
+        x = torch.tanh(self.fc3(x))
+        # Note: actor outputs are [0, 1]
+        x = (x + 1) / 2
+        return x
+    
+    def evaluate(self, state, epsilon=1e-6):
+        mu = self.forward(state)
+        return mu
+        
+    def get_action(self, state):
+        mu = self.forward(state)
+        dist = torch.distributions.Normal(mu, 1)
+        action = dist.sample()
+        return action.detach().cpu()
+    
+    def get_det_action(self, state):
+        mu = self.forward(state)
+        return mu.detach().cpu()
+    
 
 class PacketInfo:
     def __init__(self, payload_size=0, arrival_time_ms=0, send_time_ms=0, transport_seq_num=-1):
@@ -21,6 +68,7 @@ class Estimator(object):
         self.history_window_size = 10
         self.max_delay_ms = 1000
         self.max_lost_packets = 100
+        self.measurement_interval_ms = 50
         # Bandwidth Estimation
         self.bwe = self.min_bwe
         # Packet Queue
@@ -34,6 +82,7 @@ class Estimator(object):
         self.delay_ratio_history = np.ones(self.history_window_size)
         self.delay_avg_min_difference_history = np.zeros(self.history_window_size)
         self.packet_loss_history = np.zeros(self.history_window_size)
+        self.min_delay_ms_overall = 1000
         # Packet Timing Metrics
         self.packet_interarrival_time_history = np.zeros(self.history_window_size)
         self.packet_jitter_history = np.zeros(self.history_window_size)
@@ -48,9 +97,12 @@ class Estimator(object):
         self.previous_actions_history = np.zeros(self.history_window_size)
         # # Feedback metrics
         # self.timesteps_since_last_feedback = np.zeros(self.history_window_size)
-        # Torch model
+        # Load model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = torch.load("/opt/home_dir/AlphaRTC/scripts/model.pth").to(self.device)
+        model_dict = torch.load("/opt/home_dir/AlphaRTC/scripts/model.pth", map_location=torch.device('cpu'))
+        self.model = Actor(120, 1)
+        self.model.load_state_dict(model_dict)
+        self.model = self.model.to(self.device)
         self.model.eval()
 
     def report_states(self, stats: dict):
@@ -82,8 +134,11 @@ class Estimator(object):
         state = self.get_state()
         with torch.no_grad():
             self.bwe = self.model(state)
+        # with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
+        #     # f.write(f'{state}\n')
+        #     f.write(f'{self.bwe}\n')
         self.bwe = self.log_to_linear(self.bwe.item())
-        return int(self.bwe)    
+        return int(self.bwe)   
 
     def log_to_linear(self, log_action: float)->float:
         log_action = np.clip(log_action, 0, 1)
@@ -94,7 +149,7 @@ class Estimator(object):
     
     def get_state(self):
         # NOTE: The order of the arrays is important
-        state = np.concatenate([
+        state = np.column_stack([
             self.audio_packet_probability_history,
             self.average_lost_packets_history,
             self.delay_avg_min_difference_history,
@@ -108,8 +163,8 @@ class Estimator(object):
             self.receiving_rate_history,
             self.video_packet_probability_history,
         ])
-        # shape of state is (1 x 10 x 12)
-        state = np.expand_dims(state, axis=0)
+        # shape of state is (1 x 10 * 12)
+        state = state.reshape(1, -1)
         state = torch.from_numpy(state).float()
         return state
 
@@ -276,8 +331,8 @@ class Estimator(object):
 
     def update_metric(self, metric_history, new_value):
         """Updates a metric history array with a new value"""
-        np.roll(metric_history, -1)
-        metric_history[-1] = new_value
+        metric_history[:-1] = metric_history[1:]  # Shift values to the left
+        metric_history[-1] = new_value  # Add new value at the end
 
     def is_probing_packet(self, payload_type):
         """Determines if a packet is a probing packet"""
