@@ -3,7 +3,7 @@ set -e
 
 ALPHARTC_PATH="/opt/home_dir/AlphaRTC/out/Default"
 ALPHARTC_SCRIPTS="/opt/home_dir/AlphaRTC/scripts"
-CALL_DURATION=120
+CALL_DURATION=60
 CLEANUP_DELAY=10
 SETUP_DELAY=3
 

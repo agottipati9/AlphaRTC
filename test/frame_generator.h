@@ -83,6 +83,7 @@ class YuvFileGenerator : public FrameGeneratorInterface {
   // False only in case of a single file with a single frame in it.
   bool ReadNextFrame();
 
+ protected:
   size_t file_index_;
   size_t frame_index_;
   const std::vector<FILE*> files_;
@@ -94,6 +95,26 @@ class YuvFileGenerator : public FrameGeneratorInterface {
   int current_display_count_;
   rtc::scoped_refptr<I420Buffer> last_read_buffer_;
 };
+
+class Y4mFileGenerator : public YuvFileGenerator {
+  public:
+   Y4mFileGenerator(std::vector<FILE*> files,
+                    size_t width,
+                    size_t height,
+                    int frame_repeat_count);
+ 
+   ~Y4mFileGenerator();
+ 
+   VideoFrameData NextFrame() override;
+ 
+  private:
+   // Returns true if the new frame was loaded.
+   // False only in case of a single file with a single frame in it.
+   bool ReadNextY4mFrame();
+ 
+   // Buffer that is used to read file and frame headers.
+   uint8_t* buffer_;
+ };
 
 // SlideGenerator works similarly to YuvFileGenerator but it fills the frames
 // with randomly sized and colored squares instead of reading their content

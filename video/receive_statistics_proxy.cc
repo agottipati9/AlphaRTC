@@ -825,6 +825,7 @@ void ReceiveStatisticsProxy::OnRenderedFrame(const VideoFrame& frame) {
     int64_t delay_ms = clock_->CurrentNtpInMilliseconds() - frame.ntp_time_ms();
     if (delay_ms >= 0) {
       content_specific_stats->e2e_delay_counter.Add(delay_ms);
+      RTC_LOG(INFO) << "E2E FRAME DELAY: " << delay_ms;
     }
   }
   QualitySample();
