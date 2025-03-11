@@ -46,9 +46,10 @@ def main():
     # - trace_path: path to the directory containing traces
     # - n_runs: number of times to run each trace
     # load traces
-    trace_path = "/opt/home_dir/network_traces/traces/train/"
+    # trace_path = "/opt/home_dir/network_traces/traces/train/"
+    trace_path = "/opt/home_dir/toy_trace/"
     traces = load_traces(trace_path)
-    n_runs = 3
+    n_runs = 1 # 3
     
     # create unique folder path to store all results
     proc_id = int(time.time())
@@ -69,7 +70,7 @@ def main():
             # sample delay
             delay = random.randint(40, 61)
             # run test script
-            test_script = f"bash /opt/home_dir/AlphaRTC/scripts/run_mahimahi_one_trace.sh --trace {trace_file} --receiver_config {receiver_path} --sender_config {sender_path} --output_dir {results_path} --delay {delay}"
+            test_script = f"bash /opt/home_dir/AlphaRTC/scripts/run_mahimahi_one_trace_pyinfer.sh --trace {trace_file} --receiver_config {receiver_path} --sender_config {sender_path} --output_dir {results_path} --delay {delay}"
             run_command(test_script)
             # post processing
             post_processing_cmd = f"python /opt/home_dir/AlphaRTC/scripts/process_logs.py --output_dir {results_path}"
