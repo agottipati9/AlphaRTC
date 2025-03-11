@@ -5,6 +5,8 @@ from torch.distributions import Normal
 import numpy as np
 import torch.nn.functional as F
 
+import os
+
 
 class Actor(nn.Module):
     """Actor (Policy) Model."""
@@ -99,12 +101,23 @@ class Estimator(object):
         # self.timesteps_since_last_feedback = np.zeros(self.history_window_size)
         # Load model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model_dict = torch.load("/opt/home_dir/AlphaRTC/scripts/model.pth", map_location=torch.device('cpu'))
-        self.model = Actor(120, 1)
-        self.model.load_state_dict(model_dict)
-        self.model = self.model.to(self.device)
-        self.model.eval()
+        model_path_dir = "/opt/home_dir/AlphaRTC/scripts/models/"
+        self.models = self.load_models(model_path_dir)
+        # indices of models to use
+        self.model_indices = np.arange(len(self.models))
 
+    def load_models(self, model_path):
+        # get all .pth files in the directory
+        model_files = [f for f in os.listdir(model_path) if f.endswith('.pth')]
+        models = []
+        for model_file in model_files:
+            model = Actor(120, 1)
+            model.load_state_dict(torch.load(model_path + model_file, map_location=torch.device('cpu')))
+            model = model.to(self.device)
+            model.eval()
+            models.append(model)
+        return models
+        
     def report_states(self, stats: dict):
         '''
         stats is a dict with the following items
@@ -132,8 +145,11 @@ class Estimator(object):
     def get_estimated_bandwidth(self)->int:
         self.process_features()
         state = self.get_state()
+        # choose random model
+        model_idx = np.random.choice(self.model_indices)
+        model = self.models[model_idx]
         with torch.no_grad():
-            self.bwe = self.model(state)
+            self.bwe = model(state)
         with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
             # f.write(f'{state}\n')
             f.write(f'{self.bwe}\n')
