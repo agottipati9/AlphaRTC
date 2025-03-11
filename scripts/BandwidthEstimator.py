@@ -6,6 +6,8 @@ import numpy as np
 import torch.nn.functional as F
 
 import os
+import time
+
 
 
 class Actor(nn.Module):
@@ -99,12 +101,16 @@ class Estimator(object):
         self.previous_actions_history = np.zeros(self.history_window_size)
         # # Feedback metrics
         # self.timesteps_since_last_feedback = np.zeros(self.history_window_size)
-        # Load model
+        # Metapolicy attributes
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model_path_dir = "/opt/home_dir/AlphaRTC/scripts/models/"
         self.models = self.load_models(model_path_dir)
         # indices of models to use
         self.model_indices = np.arange(len(self.models))
+        self.previous_decision = 0
+        self.previous_decision_time = time.time()
+        self.decision_interval = 6.0  # seconds
+
 
     def load_models(self, model_path):
         # get all .pth files in the directory
@@ -145,8 +151,16 @@ class Estimator(object):
     def get_estimated_bandwidth(self)->int:
         self.process_features()
         state = self.get_state()
-        # choose random model
-        model_idx = np.random.choice(self.model_indices)
+        # every 6 seconds, make a decision
+        curr_time = time.time()
+        if curr_time - self.previous_decision_time > self.decision_interval:
+            self.previous_decision_time = curr_time
+            # choose random model
+            model_idx = np.random.choice(self.model_indices)
+            self.previous_decision = model_idx
+            self.previous_decision_time = curr_time
+        else:
+            model_idx = self.previous_decision
         model = self.models[model_idx]
         with torch.no_grad():
             self.bwe = model(state)
