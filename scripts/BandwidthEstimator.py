@@ -68,7 +68,7 @@ class Estimator(object):
         self.history_window_size = 10
         self.max_delay_ms = 1000
         self.max_lost_packets = 100
-        self.measurement_interval_ms = 50
+        self.measurement_interval_ms = 60
         # Bandwidth Estimation
         self.bwe = self.min_bwe
         # Packet Queue
@@ -134,18 +134,20 @@ class Estimator(object):
         state = self.get_state()
         with torch.no_grad():
             self.bwe = self.model(state)
-        # with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
-        #     # f.write(f'{state}\n')
-        #     f.write(f'{self.bwe}\n')
+        with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
+            # f.write(f'{state}\n')
+            f.write(f'{self.bwe}\n')
         self.bwe = self.log_to_linear(self.bwe.item())
         return int(self.bwe)   
 
     def log_to_linear(self, log_action: float)->float:
+        min_mbps = self.min_bwe / 1e6
+        max_mbps = self.max_bwe / 1e6
         log_action = np.clip(log_action, 0, 1)
         log_bwe_mbps = log_action * (self.log_max_mbps - self.log_min_mbps) + self.log_min_mbps
-        log_bwe_bps = log_bwe_mbps * 1e6
-        bps = np.clip(np.exp(log_bwe_bps), self.min_bwe, self.max_bwe)
-        return bps
+        bwe_mbps = np.clip(np.exp(log_bwe_mbps), min_mbps, max_mbps)
+        bwe_bps = int(bwe_mbps * 1e6)
+        return bwe_bps
     
     def get_state(self):
         # NOTE: The order of the arrays is important

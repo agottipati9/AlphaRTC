@@ -134,15 +134,24 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
                           send_time_ms, header.ssrc, header.paddingLength,
                           header.headerLength, arrival_time_ms, payload_size, -1, -1);
   } else {
+    // cmdinfer::ReportStates(
+    //     send_time_ms,
+    //     arrival_time_ms,
+    //     payload_size,
+    //     header.payloadType,
+    //     header.sequenceNumber,
+    //     header.ssrc,
+    //     header.paddingLength,
+    //     header.headerLength);
     cmdinfer::ReportStates(
-        send_time_ms,
-        arrival_time_ms,
-        payload_size,
-        header.payloadType,
-        header.sequenceNumber,
-        header.ssrc,
-        header.paddingLength,
-        header.headerLength);
+      packet_info.send_time_ms,
+      packet_info.arrival_time_ms,
+      packet_info.payload_size,
+      packet_info.payload_type,
+      packet_info.transport_seq_num,
+      packet_info.ssrc,
+      header.paddingLength,
+      header.headerLength);
   }
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
@@ -154,7 +163,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
       estimation = onnxinfer::GetBweEstimate(onnx_infer_);
     } else {
       estimation = cmdinfer::GetEstimatedBandwidth();
-      // RTC_LOG(LS_INFO) << "************ USING PYINFER ****************" << "\n" << "Estimated bandwidth: " << estimation;
+      RTC_LOG(LS_INFO) << "************ USING PYINFER ****************" << "\n" << "Estimated bandwidth: " << estimation;
     }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
