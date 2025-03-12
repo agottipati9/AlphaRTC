@@ -174,6 +174,9 @@ class Estimator(object):
         model = self.handle_model_selection()
         with torch.no_grad():
             self.bwe = model(state)
+        # with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
+        #      # f.write(f'{state}\n')
+        #      f.write(f'{self.bwe}\n')
         self.bwe = self.log_to_linear(self.bwe.item())
         self.meta_counter += 1
         return int(self.bwe)   
@@ -190,7 +193,7 @@ class Estimator(object):
             # NOTE: For offline training purposes
             self.meta_trajectory['states'].append(meta_state)
             self.meta_trajectory['actions'].append(model_idx)
-            with open(f"/mydata/meta_trajectories/{self.id}.pkl", "a") as f:
+            with open(f"/mydata/meta_trajectories/{self.id}.pkl", "wb") as f:
                 pickle.dump(self.meta_trajectory, f)
             # update previous decision
             self.meta_counter = 1
@@ -238,6 +241,7 @@ class Estimator(object):
             self.meta_average_lost_packets_history,
             self.meta_delay_history,
             self.meta_packet_interarrival_time_history,
+            self.meta_receiving_rate_history,
             self.meta_video_packet_probability_history,
             self.meta_previous_actions_history
         ])
