@@ -3,6 +3,7 @@ set -e
 
 ALPHARTC_PATH="/opt/home_dir/AlphaRTC/out/Default"
 ALPHARTC_SCRIPTS="/opt/home_dir/AlphaRTC/scripts"
+TRAJECTORY_LOGGING_PATH="/mydata/meta_trajectories"
 CALL_DURATION=120
 CLEANUP_DELAY=10
 SETUP_DELAY=3
@@ -57,6 +58,10 @@ trap cleanup EXIT SIGINT SIGTERM
 delay=${DELAY:-60}
 up_pkt_loss=0
 down_pkt_loss=0
+
+# make sure the output directories exist
+mkdir -p ${OUTPUT_DIR}
+mkdir -p ${TRAJECTORY_LOGGING_PATH}
 
 # Set up Python path
 export PYTHONPATH="${ALPHARTC_SCRIPTS}:${PYTHONPATH}"
