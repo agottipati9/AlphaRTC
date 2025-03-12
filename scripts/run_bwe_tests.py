@@ -50,6 +50,10 @@ def main():
     trace_path = "/opt/home_dir/toy_trace/"
     traces = load_traces(trace_path)
     n_runs = 1 # 3
+
+    # compile code
+    cmd = "/opt/home_dir/AlphaRTC/scripts/compile.sh"
+    run_command(cmd)
     
     # create unique folder path to store all results
     proc_id = int(time.time())
