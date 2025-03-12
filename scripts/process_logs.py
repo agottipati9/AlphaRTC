@@ -215,8 +215,13 @@ def _interpolate_video_score(packet_info, mos_df):
     mos_indices = np.linspace(0, num_frames - 1, num_mos_values)
     mos_timestamps = np.interp(mos_indices, np.arange(num_frames), frame_timestamps)
     # interpolate video MOS values to packet timestamps
-    interpolated_mos = np.interp(packet_timestamps, mos_timestamps, mos_values)
-    packet_info['interpolated_mos'] = interpolated_mos.tolist()
+    interpolated_mos_packet_level = np.interp(packet_timestamps, mos_timestamps, mos_values)
+    packet_info['interpolated_mos_packet_level'] = interpolated_mos_packet_level.tolist()
+    # interpolate video MOS values to every 50 ms (inference interval)
+    inference_interval = 50
+    inference_timestamps = np.arange(0, frame_timestamps[-1], inference_interval)
+    interpolated_mos_inference_level = np.interp(inference_timestamps, mos_timestamps, mos_values)
+    packet_info['interpolated_mos_inference_level'] = interpolated_mos_inference_level.tolist()
     return packet_info
 
 def init_network_argparse():
