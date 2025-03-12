@@ -10,6 +10,8 @@ import subprocess
 import re
 
 import pandas as pd
+import pickle
+import shutil
 
 def run_command(command):
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -224,10 +226,42 @@ def _interpolate_video_score(packet_info, mos_df):
     packet_info['interpolated_mos_inference_level'] = interpolated_mos_inference_level.tolist()
     return packet_info
 
+def process_meta_outputs(output_dir, meta_output_dir, receiver_packet_info, sender_packet_info):
+    # get all .pkl files in meta_output_dir
+    pkl_files = [f for f in os.listdir(meta_output_dir) if f.endswith(".pkl")]
+    pkl_files = sorted(pkl_files)
+    # sender is always first ts
+    with open(os.path.join(meta_output_dir, pkl_files[0]), 'rb') as f:
+        sender_meta = pickle.load(f)
+    sender_meta_mos = sender_packet_info['interpolated_mos_inference_level']
+    # average every 100 MOS values (6 seconds)
+    sender_meta_mos = [np.mean(sender_meta_mos[i:i+100]) for i in range(0, len(sender_meta_mos), 100)]
+    sender_meta['rewards'] = sender_meta_mos
+    # receiver is always second ts
+    with open(os.path.join(meta_output_dir, pkl_files[1]), 'rb') as f:
+        receiver_meta = pickle.load(f)
+    receiver_meta_mos = receiver_packet_info['interpolated_mos_inference_level']
+    # average every 100 MOS values (6 seconds)
+    receiver_meta_mos = [np.mean(receiver_meta_mos[i:i+100]) for i in range(0, len(receiver_meta_mos), 100)]
+    receiver_meta['rewards'] = receiver_meta_mos
+    # move pkl files to output_dir
+    for f in pkl_files:
+        shutil.move(os.path.join(meta_output_dir, f), os.path.join(output_dir, f))
+    # save meta outputs to output_dir
+    sender_meta_path = os.path.join(args.output_dir, "sender_meta.pkl")
+    receiver_meta_path = os.path.join(args.output_dir, "receiver_meta.pkl")
+    with open(sender_meta_path, 'wb') as f:
+        pickle.dump(sender_meta, f)
+    with open(receiver_meta_path, 'wb') as f:
+        pickle.dump(receiver_meta, f)
+
+
 def init_network_argparse():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", type=str, required=True,
                         help="path to output artifacts.")
+    parser.add_argument("--meta_output_dir", type=str, default='/mydata/meta_trajectories/',
+                        help="path to meta output artifacts.")
     parser.add_argument("--sender_log", type=str,
                         default=None, help="the path of sender log.")
     parser.add_argument("--receiver_log", type=str,
@@ -257,6 +291,9 @@ if __name__ == "__main__":
     out_path = os.path.join(args.output_dir, "call_metrics.json")
     with open(out_path, 'w') as f:
         f.write(json.dumps(out_dict))
+
+    # process meta trajectories
+    process_meta_outputs(args.output_dir, args.meta_output_dir, receiver_packet_info, sender_packet_info)
 
     print("Processed call logs.")
     print("Output written to", out_path)
