@@ -5,6 +5,7 @@ from torch.distributions import Normal
 import numpy as np
 import torch.nn.functional as F
 
+import pickle
 import os
 import time
 
@@ -101,15 +102,32 @@ class Estimator(object):
         self.previous_actions_history = np.zeros(self.history_window_size)
         # # Feedback metrics
         # self.timesteps_since_last_feedback = np.zeros(self.history_window_size)
-        # Metapolicy attributes
+        # Metapolicy models
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model_path_dir = "/opt/home_dir/AlphaRTC/scripts/models/"
         self.models = self.load_models(model_path_dir)
         # indices of models to use
         self.model_indices = np.arange(len(self.models))
         self.previous_decision = 0
-        self.previous_decision_time = time.time()
-        self.decision_interval = 6.0  # seconds
+        # meta constants
+        self.meta_counter = 1
+        self.meta_feature_update_interval = 10
+        self.meta_decision_interval = 100  # 6 seconds
+        # meta fetures
+        self.meta_packet_queue = []
+        self.meta_receiving_rate_history = np.zeros(self.history_window_size)
+        self.meta_delay_history = np.zeros(self.history_window_size)
+        self.meta_average_lost_packets_history = np.zeros(self.history_window_size)
+        self.meta_packet_interarrival_time_history = np.zeros(self.history_window_size)
+        self.meta_video_packet_probability_history = np.zeros(self.history_window_size)
+        self.meta_audio_packet_probability_history = np.zeros(self.history_window_size)
+        self.meta_previous_actions_history = np.zeros(self.history_window_size)
+        # for offline training purposes
+        self.id = int(time.time_ns()) # NOTE: sender id is always less than receiver id
+        self.meta_trajectory = {
+            'states': [],
+            'actions': []
+        }
 
 
     def load_models(self, model_path):
@@ -147,28 +165,42 @@ class Estimator(object):
         packet.is_audio = self.is_audio_packet(stats["payload_type"])
         packet.is_probing = self.is_probing_packet(stats["payload_type"])
         self.packet_queue.append(packet)
+        self.meta_packet_queue.append(packet)
 
     def get_estimated_bandwidth(self)->int:
-        self.process_features()
+        self.process_features(self.packet_queue)
+        self.packet_queue = []
         state = self.get_state()
+        model = self.handle_model_selection()
+        with torch.no_grad():
+            self.bwe = model(state)
+        self.bwe = self.log_to_linear(self.bwe.item())
+        self.meta_counter += 1
+        return int(self.bwe)   
+
+    def handle_model_selection(self):
+        if self.meta_counter % self.meta_feature_update_interval == 0:
+            self.process_features(self.meta_packet_queue, is_meta=True)
+            self.meta_packet_queue = []
         # every 6 seconds, make a decision
-        curr_time = time.time()
-        if curr_time - self.previous_decision_time > self.decision_interval:
-            self.previous_decision_time = curr_time
-            # choose random model
+        if self.meta_counter % self.meta_decision_interval == 0:
+            meta_state = self.get_meta_state()
+            # choose random model (for now)
             model_idx = np.random.choice(self.model_indices)
+            # NOTE: For offline training purposes
+            self.meta_trajectory['states'].append(meta_state)
+            self.meta_trajectory['actions'].append(model_idx)
+            with open(f"/mydata/meta_trajectories/{self.id}.pkl", "a") as f:
+                pickle.dump(self.meta_trajectory, f)
+            # update previous decision
+            self.meta_counter = 1
             self.previous_decision = model_idx
-            self.previous_decision_time = curr_time
+            self.meta_previous_actions_history[:-1] = self.meta_previous_actions_history[1:]
+            self.meta_previous_actions_history[-1] = model_idx / len(self.models)  # make it [0, 1]
         else:
             model_idx = self.previous_decision
         model = self.models[model_idx]
-        with torch.no_grad():
-            self.bwe = model(state)
-        with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
-            # f.write(f'{state}\n')
-            f.write(f'{self.bwe}\n')
-        self.bwe = self.log_to_linear(self.bwe.item())
-        return int(self.bwe)   
+        return model
 
     def log_to_linear(self, log_action: float)->float:
         min_mbps = self.min_bwe / 1e6
@@ -199,10 +231,23 @@ class Estimator(object):
         state = state.reshape(1, -1)
         state = torch.from_numpy(state).float()
         return state
+    
+    def get_meta_state(self):
+        state = np.column_stack([
+            self.meta_audio_packet_probability_history,
+            self.meta_average_lost_packets_history,
+            self.meta_delay_history,
+            self.meta_packet_interarrival_time_history,
+            self.meta_video_packet_probability_history,
+            self.meta_previous_actions_history
+        ])
+        state = state.reshape(1, -1)
+        state = torch.from_numpy(state).float()
+        return state
 
-    def process_features(self):
+    def process_features(self, packet_queue, is_meta=False):
         """Processes metrics from the packet queue and updates history arrays"""        
-        if len(self.packet_queue) == 0:
+        if len(packet_queue) == 0:
             # No packets to process
             return
         
@@ -226,8 +271,8 @@ class Estimator(object):
         max_seq = -1
         
         # Process all packets in the queue
-        while len(self.packet_queue) > 0:
-            packet = self.packet_queue.pop(0)
+        while len(packet_queue) > 0:
+            packet = packet_queue.pop(0)
             
             # Basic packet statistics
             total_bytes += packet.payload_size
@@ -264,6 +309,8 @@ class Estimator(object):
         
         # Calculate receiving rate
         interval_duration_sec = self.measurement_interval_ms / 1000.0
+        if is_meta:
+            interval_duration_sec = (self.meta_feature_update_interval * self.measurement_interval_ms) / 1000.0
         receiving_rate_bps = int(total_bytes * 8 / interval_duration_sec)
         
         # Calculate average delay
@@ -321,45 +368,76 @@ class Estimator(object):
         probing_packets_probability = (probing_packets / total_packets) if total_packets > 0 else 0
         
         # Store computed metrics
+        if is_meta:
+            self.update_meta_metrics(receiving_rate_bps, avg_delay_ms, mean_interarrival_ms,
+                                     average_lost_packets, video_packets_probability,
+                                     audio_packets_probability)
+        else:
+            self.update_metrics(receiving_rate_bps, queuing_delay_ms, avg_delay_ms, min_delay_ms_this_interval,
+                                delay_avg_min_difference_ms, delay_ratio, mean_interarrival_ms, jitter_ms,
+                                packet_loss_ratio, average_lost_packets, video_packets_probability,
+                                audio_packets_probability, probing_packets_probability)
+
+    def update_meta_metrics(self, receiving_rate_bps, avg_delay_ms, mean_interarrival_ms,
+                            average_lost_packets, video_packets_probability,
+                            audio_packets_probability):        
+        """Updates all meta metrics with the new values"""
+        # Rate metrics (normalized)
+        receiving_rate_bps = np.clip(receiving_rate_bps, self.min_bwe, self.max_bwe) / self.max_bwe
+        self.update_metric(self.meta_receiving_rate_history, receiving_rate_bps)
+        # Delay metrics (normalized)    
+        avg_delay_ms = np.clip(avg_delay_ms, 0, self.max_delay_ms) / self.max_delay_ms
+        self.update_metric(self.meta_delay_history, avg_delay_ms)
+        # Jitter metrics (normalized)
+        mean_interarrival_ms = np.clip(mean_interarrival_ms, 0, self.max_delay_ms) / self.max_delay_ms
+        self.update_metric(self.meta_packet_interarrival_time_history, mean_interarrival_ms)
+        # Loss metrics (normalized)
+        average_lost_packets = np.clip(average_lost_packets, 0, self.max_lost_packets) / self.max_lost_packets
+        self.update_metric(self.meta_average_lost_packets_history, average_lost_packets)
+        # Media type metrics
+        self.update_metric(self.meta_video_packet_probability_history, video_packets_probability)
+        self.update_metric(self.meta_audio_packet_probability_history, audio_packets_probability)
+
+
+    def update_metrics(self, receiving_rate_bps, queuing_delay_ms, avg_delay_ms, min_delay_ms_this_interval,
+                          delay_avg_min_difference_ms, delay_ratio, mean_interarrival_ms, jitter_ms,
+                            packet_loss_ratio, average_lost_packets, video_packets_probability,
+                            audio_packets_probability, probing_packets_probability):
+        """Updates all metrics with the new values"""
         # Rate metrics (normalized)
         receiving_rate_bps = np.clip(receiving_rate_bps, self.min_bwe, self.max_bwe) / self.max_bwe
         self.update_metric(self.receiving_rate_history, receiving_rate_bps)
-        
         # Delay metrics (normalized)
         queuing_delay_ms = np.clip(queuing_delay_ms, 0, self.max_delay_ms) / self.max_delay_ms
         self.update_metric(self.queuing_delay_history, queuing_delay_ms)
         avg_delay_ms = np.clip(avg_delay_ms, 0, self.max_delay_ms) / self.max_delay_ms
         self.update_metric(self.delay_history, avg_delay_ms)
         self.min_seen_delay_ms_overall = np.clip(self.min_delay_ms_overall, 0, self.max_delay_ms) / self.max_delay_ms
-        self.update_metric(self.min_seen_delay_history, self.min_delay_ms_overall)
+        self.update_metric(self.min_seen_delay_history, min_delay_ms_this_interval)
         delay_avg_min_difference_ms = np.clip(delay_avg_min_difference_ms, 0, self.max_delay_ms) / self.max_delay_ms
         self.update_metric(self.delay_avg_min_difference_history, delay_avg_min_difference_ms)
         delay_ratio = np.clip(delay_ratio - 1.0, 0, 1)  # avg delay should be greater than min delay
         self.update_metric(self.delay_ratio_history, delay_ratio)
-
-        # Jitter metrics
+        # Jitter metrics (normalized)
         mean_interarrival_ms = np.clip(mean_interarrival_ms, 0, self.max_delay_ms) / self.max_delay_ms
         self.update_metric(self.packet_interarrival_time_history, mean_interarrival_ms)
         jitter_ms = np.clip(jitter_ms, 0, self.max_delay_ms) / self.max_delay_ms
         self.update_metric(self.packet_jitter_history, jitter_ms)
-        
-        # Packet loss metrics
+        # Loss metrics (normalized)
         packet_loss_ratio = np.clip(packet_loss_ratio, 0, 1)
         self.update_metric(self.packet_loss_ratio_history, packet_loss_ratio)
         average_lost_packets = np.clip(average_lost_packets, 0, self.max_lost_packets) / self.max_lost_packets
         self.update_metric(self.average_lost_packets_history, average_lost_packets)
-        
-        # Packet type metrics
+        # Media type metrics
         self.update_metric(self.video_packet_probability_history, video_packets_probability)
         self.update_metric(self.audio_packet_probability_history, audio_packets_probability)
         self.update_metric(self.probing_packet_probability_history, probing_packets_probability)
-        
         # Misc metrics
         # timesteps_since_feedback = int((now_ms - self.last_feedback_report_ms) / self.measurement_interval_ms)
         # self.update_metric(self.timesteps_since_last_feedback, timesteps_since_feedback)
         # print(f"Timesteps since last feedback: {self.vector_to_string(self.timesteps_since_last_feedback)}")
-        
         # Previous actions would be updated elsewhere in the code
+
 
     def update_metric(self, metric_history, new_value):
         """Updates a metric history array with a new value"""

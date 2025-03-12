@@ -17,6 +17,7 @@ def run_command(command):
 
 def load_traces(trace_path):
     traces = glob.glob(os.path.join(trace_path, "*"))
+    traces = sorted(traces)  # ensure traces are sorted
     return traces
 
 def set_configuration_files(proc_id, results_path, port=5000):
@@ -64,8 +65,8 @@ def main():
             trace_name = os.path.basename(trace_file) # without extension
             if '.' in trace_file:
                 trace_name = trace_name.split('.')[0]
-            results_path = f"/mydata/outputs/test_artifacts/RESULTS_RUN_{i}_TRACE_{trace_name}_ID_{proc_id}/"
-            # results_path = f"/opt/home_dir/outputs/test_artifacts/RESULTS_RUN_{i}_TRACE_{trace_name}_ID_{proc_id}/"
+            results_path = f"/mydata/outputs/test_artifacts/RESULTS_RUN_{i}_STEP_{j}_TRACE_{trace_name}_ID_{proc_id}/"
+            # results_path = f"/opt/home_dir/outputs/test_artifacts/RESULTS_RUN_{i}_STEP_{j}_TRACE_{trace_name}_ID_{proc_id}/"
             if not os.path.exists(results_path):
                 os.makedirs(results_path)
             # update log output paths and port numbers
