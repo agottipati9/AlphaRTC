@@ -48,7 +48,8 @@ def main():
     # - n_runs: number of times to run each trace
     # load traces
     # trace_path = "/opt/home_dir/network_traces/traces/train/"
-    trace_path = "/opt/home_dir/toy_trace/"
+    # trace_path = "/opt/home_dir/toy_trace/"
+    trace_path = "/opt/home_dir/network_traces/validation/"
     traces = load_traces(trace_path)
     n_runs = 1 # 3
 
@@ -83,6 +84,8 @@ def main():
             # delete configuration files
             os.remove(sender_path)
             os.remove(receiver_path)
+            # wait for 5 seconds for FDs to close
+            time.sleep(5)
 
 if __name__ == '__main__':
     main()
