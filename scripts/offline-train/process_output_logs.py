@@ -4,13 +4,15 @@ import pickle
 import re
 from tqdm import tqdm
 
+import pandas as pd
+
 def get_all_call_metric_paths(path):
     call_metric_paths = []
     for root, dirs, files in os.walk(path):
         for file in files:
-            if file.endswith(".log"):
+            if file.endswith(".log") or file.endswith(".csv"):
                 call_metric_paths.append(os.path.join(root, file))
-    return call_metric_paths
+    return sorted(call_metric_paths)  # ensure paths are sorted
 
 def process_log_file(path):
     state_info = {}
@@ -63,17 +65,30 @@ def process_log_file(path):
                     print(f"Warning: Failed to parse metric line: {content}, error: {str(e)}")
     return state_info
 
+def process_csv_file(path):
+    mos_df = pd.read_csv(path)
+    mos_values = mos_df["video_call_mos"].values
+    return list(mos_values)
 
 def process_data(paths):
-    data = []
+    data = {}
     for path in tqdm(paths):
-        log_data = process_log_file(path)
-        data.append(log_data)
+        path_key = '/'.join(path.split('/')[:-1])
+        if data.get(path_key, None) is None:
+            data[path_key] = {}
+        if path.endswith('.log'):
+            log_data = process_log_file(path)
+            dict_key = 'sender_data' if 'sender' in path else 'receiver_data'
+            data[path_key][dict_key] = log_data
+        elif path.endswith('.csv'):
+            mos_values = process_csv_file(path)
+            dict_key = 'sender_mos' if 'sender' in path else 'receiver_mos'
+            data[path_key][dict_key] = mos_values
     # save data to a file
-    with open('./data.pkl', 'wb') as f:
+    with open('/mydata/gcc_baselines/data.pkl', 'wb') as f:
         pickle.dump(data, f)
 
-paths = get_all_call_metric_paths('./test_artifacts/')
+paths = get_all_call_metric_paths('/mydata/gcc_baselines/test_artifacts/')
 process_data(paths)
 
 
