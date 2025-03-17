@@ -4,7 +4,7 @@ set -e
 ALPHARTC_PATH="/opt/home_dir/AlphaRTC/out/Default"
 ALPHARTC_SCRIPTS="/opt/home_dir/AlphaRTC/scripts"
 TRAJECTORY_LOGGING_PATH="/mydata/meta_trajectories"
-CALL_DURATION=60
+CALL_DURATION=120
 CLEANUP_DELAY=10
 SETUP_DELAY=3
 

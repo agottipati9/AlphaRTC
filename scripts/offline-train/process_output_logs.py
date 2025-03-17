@@ -85,10 +85,10 @@ def process_data(paths):
             dict_key = 'sender_mos' if 'sender' in path else 'receiver_mos'
             data[path_key][dict_key] = mos_values
     # save data to a file
-    with open('/mydata/gcc_baselines/data.pkl', 'wb') as f:
+    with open('/mydata/outputs/data.pkl', 'wb') as f:
         pickle.dump(data, f)
 
-paths = get_all_call_metric_paths('/mydata/gcc_baselines/test_artifacts/')
+paths = get_all_call_metric_paths('/mydata/outputs/test_artifacts/')
 process_data(paths)
 
 

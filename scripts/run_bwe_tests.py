@@ -47,11 +47,11 @@ def main():
     # - trace_path: path to the directory containing traces
     # - n_runs: number of times to run each trace
     # load traces
-    # trace_path = "/opt/home_dir/network_traces/traces/train/"
+    trace_path = "/opt/home_dir/network_traces/traces/train/"
     # trace_path = "/opt/home_dir/toy_trace/"
-    trace_path = "/opt/home_dir/network_traces/validation/"
+    # trace_path = "/opt/home_dir/network_traces/validation/"
     traces = load_traces(trace_path)
-    n_runs = 1 # 3
+    n_runs = 3
 
     # compile code
     cmd = "/opt/home_dir/AlphaRTC/scripts/compile.sh"
@@ -67,7 +67,6 @@ def main():
             if '.' in trace_file:
                 trace_name = trace_name.split('.')[0]
             results_path = f"/mydata/outputs/test_artifacts/RESULTS_RUN_{i}_STEP_{j}_TRACE_{trace_name}_ID_{proc_id}/"
-            # results_path = f"/opt/home_dir/outputs/test_artifacts/RESULTS_RUN_{i}_STEP_{j}_TRACE_{trace_name}_ID_{proc_id}/"
             if not os.path.exists(results_path):
                 os.makedirs(results_path)
             # update log output paths and port numbers
