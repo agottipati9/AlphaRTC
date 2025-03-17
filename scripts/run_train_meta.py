@@ -44,11 +44,11 @@ def main():
     # - trace_path: path to the directory containing traces
     # - n_runs: number of times to run each trace
     # load traces
-    # trace_path = "/opt/home_dir/network_traces/traces/train/"
-    trace_path = "/opt/home_dir/toy_trace/"
+    trace_path = "/opt/home_dir/network_traces/traces/train/"
+    # trace_path = "/opt/home_dir/toy_trace/"
     # trace_path = "/opt/home_dir/network_traces/validation/"
     traces = load_traces(trace_path)
-    n_runs = 1 # 10
+    n_runs = 10
 
     # compile code
     cmd = "/opt/home_dir/AlphaRTC/scripts/compile.sh"
@@ -67,8 +67,8 @@ def main():
     # create unique folder path to store all results
     proc_id = int(time.time())
     for i in range(0, n_runs):
+        print(f"Epoch {i+1}, Running trace: {trace_file}")
         for j, trace_file in enumerate(traces):
-            print(f"Round {i+1}, Running trace: {trace_file}")
             # create output directory
             trace_name = os.path.basename(trace_file) # without extension
             if '.' in trace_file:
@@ -94,7 +94,7 @@ def main():
             train_meta_cmd = f"python /opt/home_dir/AlphaRTC/scripts/online-train/train.py --epoch {i * len(traces) + j} --traj_path /mydata/online_train/meta_trajectories.pkl"
             out, _, __ = run_command(train_meta_cmd)
             print(out)
-            # remove trajectory files after update to avoid training on stale data
+            # remove trajectory files after update to avoid training on stale data            
             os.remove(f"/mydata/online_train/meta_trajectories.pkl")
             # delete configuration files
             os.remove(sender_path)

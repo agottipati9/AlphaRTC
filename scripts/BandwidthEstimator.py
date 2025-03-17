@@ -330,7 +330,6 @@ class Estimator(object):
             # choose random model (for now)
             # model_idx = np.random.choice(self.model_indices)
             model_idx = np.argmax(self.meta_model.predict(meta_state))
-            # NOTE: For offline training purposes
             self.meta_trajectory['states'].append(meta_state)
             self.meta_trajectory['actions'].append(model_idx)
             with open(f"/mydata/meta_trajectories/{self.id}.pkl", "wb") as f:

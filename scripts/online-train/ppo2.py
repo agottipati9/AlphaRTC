@@ -83,8 +83,6 @@ class Network():
         p_batch = torch.from_numpy(p_batch).to(torch.float32)
         v_batch = torch.from_numpy(v_batch).to(torch.float32)
 
-        print(v_batch.shape)
-
         for _ in range(self.PPO_TRAINING_EPO):
             pi = self.actor.forward(s_batch)
             val = self.critic.forward(s_batch)
@@ -109,6 +107,7 @@ class Network():
         _g = _H - self.H_target
         self._entropy_weight -= self.lr_rate * _g * 0.1 * self.PPO_TRAINING_EPO
         self._entropy_weight = max(self._entropy_weight, 1e-2)
+        return loss.item()
 
     def predict(self, input):
         with torch.no_grad():

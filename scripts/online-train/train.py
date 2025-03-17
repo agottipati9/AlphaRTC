@@ -66,7 +66,7 @@ def train_agent(args):
             actor.load_model(args.output_dir)
             print('Model restored.')
         except Exception as e:
-            print('Starting from scratch:', e)
+            print('Starting from scratch.')
             
         # Collect experience
         obs = states[0]
@@ -102,12 +102,12 @@ def train_agent(args):
         v_batch = np.vstack(v_batch)
         
         # Train the network
-        actor.train(s_batch, a_batch, p_batch, v_batch)
+        loss = actor.train(s_batch, a_batch, p_batch, v_batch)
         
         # Log training data
         avg_reward = np.mean(rewards)
-        train_log_file.write(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}\n')
-        print(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}')
+        train_log_file.write(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}, Average Loss: {loss:.2f}\n')
+        print(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}, Average Loss: {loss:.2f}')
         
         # Save the model checkpoint
         actor.save_model(f'{CHECKPOINT_DIR}/model_n_call_{epoch_num * 2}.pth')
