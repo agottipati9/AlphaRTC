@@ -83,6 +83,8 @@ class Network():
         p_batch = torch.from_numpy(p_batch).to(torch.float32)
         v_batch = torch.from_numpy(v_batch).to(torch.float32)
 
+        print(v_batch.shape)
+
         for _ in range(self.PPO_TRAINING_EPO):
             pi = self.actor.forward(s_batch)
             val = self.critic.forward(s_batch)
@@ -95,6 +97,7 @@ class Network():
             dual_loss = torch.where(adv < 0, torch.max(ppo2loss, 3. * adv), ppo2loss)
             loss_entropy = torch.sum(-pi * torch.log(pi), dim=1, keepdim=True)
 
+            val = val.squeeze(-1)
             loss = -dual_loss.mean() + 10. * F.mse_loss(val, v_batch) - self._entropy_weight * loss_entropy.mean()
 
             self.optimizer.zero_grad()

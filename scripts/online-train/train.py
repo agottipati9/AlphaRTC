@@ -23,8 +23,6 @@ if not os.path.exists(OUTPUT_LOG_DIR):
 if not os.path.exists(CHECKPOINT_DIR):
     os.makedirs(CHECKPOINT_DIR)
 
-NN_MODEL = None
-
 def load_trajectory(trajectory_path):   
     # Load trajectory data
     with open(trajectory_path, 'rb') as f:
@@ -40,16 +38,14 @@ def load_trajectory(trajectory_path):
     data = data[key]
     sender_t_steps = len(data['sender_data']['states'])
     receiver_t_steps = len(data['receiver_data']['states'])
-    if sender_t_steps >= 15:
-        states.extend(data['sender_data']['states'])
-        rewards.extend(data['sender_data']['rewards'][:sender_t_steps])
-        actions.extend(data['sender_data']['actions'][:sender_t_steps])
-    if receiver_t_steps >= 15:
-        states.extend(data['receiver_data']['states'])
-        rewards.extend(data['receiver_data']['rewards'][:receiver_t_steps])
-        actions.extend(data['receiver_data']['actions'][:receiver_t_steps])
-    # NOTE: if < 15 then error occurred during call so just skip
-    assert sender_t_steps >= 15 or receiver_t_steps >= 15
+    # discard tail actions
+    states.extend(data['sender_data']['states'])
+    rewards.extend(data['sender_data']['rewards'][:sender_t_steps])
+    actions.extend(data['sender_data']['actions'][:sender_t_steps])
+    # discard tail actions
+    states.extend(data['receiver_data']['states'])
+    rewards.extend(data['receiver_data']['rewards'][:receiver_t_steps])
+    actions.extend(data['receiver_data']['actions'][:receiver_t_steps])
     return states, rewards, actions
 
 def train_agent(args):
@@ -57,7 +53,7 @@ def train_agent(args):
     # Load trajectory data
     states, rewards, actions = load_trajectory(args.traj_path)
 
-    with open(LOG_FILE + '_train.txt', 'w') as train_log_file:
+    with open(LOG_FILE + '_train.txt', 'a') as train_log_file:
         # Create environment and actor network
         actor = network.Network(
             state_dim=S_DIM,
@@ -67,9 +63,8 @@ def train_agent(args):
 
         # Restore neural net parameters if available
         try:
-            if NN_MODEL is not None:
-                actor.load_model(NN_MODEL)
-                print('Model restored.')
+            actor.load_model(args.output_dir)
+            print('Model restored.')
         except Exception as e:
             print('Starting from scratch:', e)
             
@@ -99,7 +94,7 @@ def train_agent(args):
         # Calculate values
         done = True
         v_batch = actor.compute_v(s_batch, a_batch, r_batch, done)
-        
+
         # Convert to numpy arrays
         s_batch = np.stack(s_batch, axis=0)
         a_batch = np.vstack(a_batch)
@@ -117,14 +112,14 @@ def train_agent(args):
         # Save the model checkpoint
         actor.save_model(f'{CHECKPOINT_DIR}/model_n_call_{epoch_num * 2}.pth')
         # Save the model for inference
-        actor.save_model(f'{args.output_dir}/meta.pth')
-    print("Training completed!")
+        actor.save_model(args.output_dir)
+    print(f"Training completed! Model saved to {args.output_dir}")
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train PPO agent')
     parser.add_argument('--epoch', type=int, default=1, help='Current epoch training number')
     parser.add_argument('--traj_path', type=str, default='/mydata/online_train/meta_trajectories.pkl', help='Path to trajectory data')
-    parser.add_argument('--output_dir', type=str, default='/mydata/online_train/', help='Where to write meta model for inference')
+    parser.add_argument('--output_dir', type=str, default='/opt/home_dir/AlphaRTC/scripts/meta_model/meta.pth', help='Where to write meta model for inference')
     return parser.parse_args()
 
 def main():
@@ -132,6 +127,11 @@ def main():
     torch.set_num_threads(1)
 
     args = parse_args()
+
+    # check if trajectory path exists
+    if not os.path.exists(args.traj_path):
+        print('Trajectory path does not exist!')
+        return
     
     # Set number of epochs for training
     train_agent(args)

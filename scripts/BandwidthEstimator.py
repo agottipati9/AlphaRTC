@@ -163,9 +163,11 @@ class Network():
             return pi.numpy()
 
     def load_model(self, nn_model):
-        actor_model_params, critic_model_params = torch.load(nn_model)
+        actor_model_params, critic_model_params = torch.load(nn_model, map_location=torch.device('cpu'))
         self.actor.load_state_dict(actor_model_params)
         self.critic.load_state_dict(critic_model_params)
+        self.actor.eval()
+        self.critic.eval()
 
     def save_model(self, nn_model):
         model_params = [self.actor.state_dict(), self.critic.state_dict()]
@@ -278,9 +280,7 @@ class Estimator(object):
     
     def load_meta_model(self):
         model = Network()
-        model.load_state_dict(torch.load("/opt/home_dir/AlphaRTC/scripts/meta_model/meta_model.pth", map_location=torch.device('cpu')))
-        model = model.to(self.device)
-        model.eval()
+        model.load_model("/opt/home_dir/AlphaRTC/scripts/meta_model/meta.pth")
         return model
         
     def report_states(self, stats: dict):
@@ -315,9 +315,6 @@ class Estimator(object):
         model = self.handle_model_selection()
         with torch.no_grad():
             self.bwe = model(state)
-        # with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
-        #      # f.write(f'{state}\n')
-        #      f.write(f'{self.bwe}\n')
         self.bwe = self.log_to_linear(self.bwe.item())
         self.meta_counter += 1
         return int(self.bwe)   
