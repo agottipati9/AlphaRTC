@@ -12,25 +12,22 @@ A_DIM = 5
 ACTOR_LR_RATE = 1e-4
 RANDOM_SEED = 42
 # TODO: set the output directory
-OUTPUT_DIR = './ppo'
-MODEL_DIR = './models'
-LOG_FILE = OUTPUT_DIR + '/log'
-CHECKPOINT_DIR = OUTPUT_DIR + '/checkpoints'
-
-TRAJECORY_PATH = "/Users/silver/Desktop/alphartc_process_logs/data/meta_trajectories/meta_trajectories.pkl"
+OUTPUT_LOG_DIR = '/mydata/online_train/ppo'
+LOG_FILE = OUTPUT_LOG_DIR + '/log'
+CHECKPOINT_DIR = OUTPUT_LOG_DIR + '/checkpoints'
 
 # Create result directory
-if not os.path.exists(OUTPUT_DIR):
-    os.makedirs(OUTPUT_DIR)
+if not os.path.exists(OUTPUT_LOG_DIR):
+    os.makedirs(OUTPUT_LOG_DIR)
 
 if not os.path.exists(CHECKPOINT_DIR):
     os.makedirs(CHECKPOINT_DIR)
 
 NN_MODEL = None
 
-def load_trajectory():   
+def load_trajectory(trajectory_path):   
     # Load trajectory data
-    with open(TRAJECORY_PATH, 'rb') as f:
+    with open(trajectory_path, 'rb') as f:
         data = pickle.load(f)
     
     states = []
@@ -55,9 +52,10 @@ def load_trajectory():
     assert sender_t_steps >= 15 or receiver_t_steps >= 15
     return states, rewards, actions
 
-def train_agent(epoch_num):
+def train_agent(args):
+    epoch_num = args.epoch
     # Load trajectory data
-    states, rewards, actions = load_trajectory()
+    states, rewards, actions = load_trajectory(args.traj_path)
 
     with open(LOG_FILE + '_train.txt', 'w') as train_log_file:
         # Create environment and actor network
@@ -116,13 +114,17 @@ def train_agent(epoch_num):
         train_log_file.write(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}\n')
         print(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}')
         
-        # Save the model
+        # Save the model checkpoint
         actor.save_model(f'{CHECKPOINT_DIR}/model_n_call_{epoch_num * 2}.pth')
+        # Save the model for inference
+        actor.save_model(f'{args.output_dir}/meta.pth')
     print("Training completed!")
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train PPO agent')
     parser.add_argument('--epoch', type=int, default=1, help='Current epoch training number')
+    parser.add_argument('--traj_path', type=str, default='/mydata/online_train/meta_trajectories.pkl', help='Path to trajectory data')
+    parser.add_argument('--output_dir', type=str, default='/mydata/online_train/', help='Where to write meta model for inference')
     return parser.parse_args()
 
 def main():
@@ -132,7 +134,7 @@ def main():
     args = parse_args()
     
     # Set number of epochs for training
-    train_agent(args.epoch)
+    train_agent(args)
 
 if __name__ == '__main__':
     main()

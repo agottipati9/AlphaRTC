@@ -1,6 +1,3 @@
-# TODO:
-#  - parallelize this script to run 3 workers at once -- maybe not a good idea since we are also running ffmpeg
-
 import os
 import sys
 import glob
@@ -47,11 +44,11 @@ def main():
     # - trace_path: path to the directory containing traces
     # - n_runs: number of times to run each trace
     # load traces
-    trace_path = "/opt/home_dir/network_traces/traces/train/"
-    # trace_path = "/opt/home_dir/toy_trace/"
+    # trace_path = "/opt/home_dir/network_traces/traces/train/"
+    trace_path = "/opt/home_dir/toy_trace/"
     # trace_path = "/opt/home_dir/network_traces/validation/"
     traces = load_traces(trace_path)
-    n_runs = 3
+    n_runs = 1 # 3
 
     # compile code
     cmd = "/opt/home_dir/AlphaRTC/scripts/compile.sh"
@@ -80,6 +77,12 @@ def main():
             # post processing
             post_processing_cmd = f"python /opt/home_dir/AlphaRTC/scripts/process_logs.py --output_dir {results_path}"
             run_command(post_processing_cmd)
+            # process meta trajectories
+            meta_processing_cmd = f"python /opt/home_dir/AlphaRTC/scripts/online-train/process_meta_output_logs.py --path {results_path} --output /mydata/online_train/"
+            run_command(meta_processing_cmd)
+            # train agent with meta trajectories
+            train_meta_cmd = f"python /opt/home_dir/AlphaRTC/scripts/online-train/train.py --epoch {i * len(traces) + j} --traj_path /mydata/online_train/meta_trajectories.pkl"
+            run_command(train_meta_cmd)
             # delete configuration files
             os.remove(sender_path)
             os.remove(receiver_path)
