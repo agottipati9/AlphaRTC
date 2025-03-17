@@ -46,14 +46,13 @@ def main():
     # load traces
     trace_path = "/opt/home_dir/network_traces/traces/train/"
     # trace_path = "/opt/home_dir/toy_trace/"
-    # trace_path = "/opt/home_dir/network_traces/validation/"
+    # trace_path = "/opt/home_dir/network_traces/debug/"
     traces = load_traces(trace_path)
     n_runs = 10
 
     # compile code
     cmd = "/opt/home_dir/AlphaRTC/scripts/compile.sh"
     run_command(cmd)
-
     # reset meta model
     cmd = "cp /opt/home_dir/AlphaRTC/scripts/online-train/ppo/checkpoints/initial_meta.pth /opt/home_dir/AlphaRTC/scripts/meta_model/meta.pth"
     run_command(cmd)
@@ -67,8 +66,9 @@ def main():
     # create unique folder path to store all results
     proc_id = int(time.time())
     for i in range(0, n_runs):
-        print(f"Epoch {i+1}, Running trace: {trace_file}")
+        print(f"Epoch {i+1}")
         for j, trace_file in enumerate(traces):
+            print(f"Step {j+1}, Running trace: {trace_file}")
             # create output directory
             trace_name = os.path.basename(trace_file) # without extension
             if '.' in trace_file:

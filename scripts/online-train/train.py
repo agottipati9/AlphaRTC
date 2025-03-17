@@ -106,8 +106,8 @@ def train_agent(args):
         
         # Log training data
         avg_reward = np.mean(rewards)
-        train_log_file.write(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}, Average Loss: {loss:.2f}\n')
-        print(f'Epoch: {epoch_num}, Average Reward: {avg_reward:.2f}, Average Loss: {loss:.2f}')
+        train_log_file.write(f'Step: {epoch_num}, Average Reward: {avg_reward:.2f}, Average Loss: {loss:.2f}\n')
+        print(f'Step: {epoch_num}, Average Reward: {avg_reward:.2f}, Average Loss: {loss:.2f}')
         
         # Save the model checkpoint
         actor.save_model(f'{CHECKPOINT_DIR}/model_n_call_{epoch_num * 2}.pth')
