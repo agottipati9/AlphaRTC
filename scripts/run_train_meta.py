@@ -39,6 +39,27 @@ def set_configuration_files(proc_id, results_path, port=5000):
     receiver_config = json.dump(receiver_config, open(CONFIG_DIR + f"tmp_receiver_config_proc_{proc_id}.json", "w"))
     return CONFIG_DIR + f"tmp_sender_config_proc_{proc_id}.json", CONFIG_DIR + f"tmp_receiver_config_proc_{proc_id}.json"
 
+def setup():
+    # compile code
+    cmd = "/opt/home_dir/AlphaRTC/scripts/compile.sh"
+    run_command(cmd)
+    # reset meta model
+    cmd = "cp /opt/home_dir/AlphaRTC/scripts/online-train/ppo/checkpoints/initial_meta.pth /opt/home_dir/AlphaRTC/scripts/meta_model/meta.pth"
+    run_command(cmd)
+    # reset output directory
+    cmd = "mkdir -p /mydata/outputs/test_artifacts/"
+    run_command(cmd)
+    cmd = "rm -rf /mydata/outputs/test_artifacts/*"
+    run_command(cmd)
+    # reset online train log dir
+    cmd = "mkdir -p /mydata/online_train/"
+    run_command(cmd)
+    cmd = "rm -rf /mydata/online_train/*"
+    run_command(cmd)
+    # create meta_trajectories dir if it does not exist
+    cmd = "mkdir -p /mydata/meta_trajectories/"
+    run_command(cmd)
+
 def main():
     # PARAMETERS
     # - trace_path: path to the directory containing traces
@@ -50,18 +71,8 @@ def main():
     traces = load_traces(trace_path)
     n_runs = 10
 
-    # compile code
-    cmd = "/opt/home_dir/AlphaRTC/scripts/compile.sh"
-    run_command(cmd)
-    # reset meta model
-    cmd = "cp /opt/home_dir/AlphaRTC/scripts/online-train/ppo/checkpoints/initial_meta.pth /opt/home_dir/AlphaRTC/scripts/meta_model/meta.pth"
-    run_command(cmd)
-    # clear outputs
-    cmd = "rm -rf /mydata/outputs/test_artifacts/*"
-    run_command(cmd)
-    # reset online train log dir
-    cmd = "rm -rf /mydata/online_train/*"
-    run_command(cmd)
+    # clear directories and compile code
+    setup()
     
     # create unique folder path to store all results
     proc_id = int(time.time())
