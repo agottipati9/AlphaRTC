@@ -9,7 +9,47 @@ import pickle
 import os
 import time
 
+class MetaActor(nn.Module):
+    """Actor (Policy) Model."""
 
+    def __init__(self, state_size=70, action_size=5, hidden_size=128, init_w=3e-3, log_std_min=-10, log_std_max=2):
+        """Initialize parameters and build model.
+        Params
+        ======
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
+            seed (int): Random seed
+            fc1_units (int): Number of nodes in first hidden layer
+            fc2_units (int): Number of nodes in second hidden layer
+        """
+        super(MetaActor, self).__init__()
+
+        self.fc1 = nn.Linear(state_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, action_size)
+
+    def forward(self, state):        
+        x = F.relu(self.fc1(state))
+        x = F.relu(self.fc2(x))
+        x = F.softmax(self.fc3(x), dim=-1)
+        return x
+    
+    def evaluate(self, state, epsilon=1e-6):
+        mu = self.forward(state)
+        dist = torch.distributions.Categorical(mu)
+        action = dist.sample()
+        return action, dist
+        
+    def get_action(self, state):
+        mu = self.forward(state)
+        dist = torch.distributions.Categorical(mu, 1)
+        action = dist.sample()
+        return action.detach().cpu()
+    
+    def get_det_action(self, state):
+        mu = self.forward(state)
+        mu = torch.argmax(mu, dim=-1)
+        return mu.detach().cpu()
 
 class Actor(nn.Module):
     """Actor (Policy) Model."""
@@ -113,6 +153,10 @@ class Estimator(object):
         self.meta_counter = 1
         self.meta_feature_update_interval = 10
         self.meta_decision_interval = 100  # 6 seconds
+        # meta model
+        meta_model_path_dir = "/opt/home_dir/AlphaRTC/scripts/meta_model/meta.pth"
+        self.meta_model = None
+        self.load_meta_model(meta_model_path_dir)
         # meta fetures
         self.meta_packet_queue = []
         self.meta_receiving_rate_history = np.zeros(self.history_window_size)
@@ -129,6 +173,12 @@ class Estimator(object):
             'actions': []
         }
 
+
+    def load_meta_model(self, model_path):
+        self.meta_model = MetaActor()
+        self.meta_model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+        self.meta_model = self.meta_model.to(self.device)
+        self.meta_model.eval()
 
     def load_models(self, model_path):
         # get all .pth files in the directory
@@ -188,8 +238,14 @@ class Estimator(object):
         # every 6 seconds, make a decision
         if self.meta_counter % self.meta_decision_interval == 0:
             meta_state = self.get_meta_state()
-            # choose random model (for now)
-            model_idx = np.random.choice(self.model_indices)
+            # # choose random model (for now)
+            # model_idx = np.random.choice(self.model_indices)
+            model_idx = self.meta_model.get_det_action(meta_state)
+            model_idx = model_idx.item()
+            # log out meta action for debugging:
+            # with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
+            #      # f.write(f'{state}\n')
+            #      f.write(f'{model_idx}\n')  
             # NOTE: For offline training purposes
             self.meta_trajectory['states'].append(meta_state)
             self.meta_trajectory['actions'].append(model_idx)
