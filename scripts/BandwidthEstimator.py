@@ -268,7 +268,7 @@ class Estimator(object):
 
     def load_models(self, model_path):
         # get all .pth files in the directory
-        model_files = [f for f in os.listdir(model_path) if f.endswith('.pth')]
+        model_files = sorted([f for f in os.listdir(model_path) if f.endswith('.pth')])
         models = []
         for model_file in model_files:
             model = Actor(120, 1)
