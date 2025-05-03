@@ -3,7 +3,7 @@
         "autoclose": 120,
         "sender": {
             "enabled": true,
-            "dest_ip": "127.0.0.1",
+            "dest_ip": "9.27.27.2",
             "dest_port": 8000
         },
         "receiver": {
@@ -36,7 +36,7 @@
         }
     },
     "save_to_file": {
-        "enabled": false,
+        "enabled": true,
         "audio": {
             "file_path": "/opt/home_dir/outputs/sender_outaudio.wav"
         },
