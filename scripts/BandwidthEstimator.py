@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.distributions import Normal
 import numpy as np
 import torch.nn.functional as F
-
+import os
 
 class Actor(nn.Module):
     """Actor (Policy) Model."""
@@ -100,10 +100,23 @@ class Estimator(object):
         # Load model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model_dict = torch.load("/opt/home_dir/AlphaRTC/scripts/model.pth", map_location=torch.device('cpu'))
-        self.model = Actor(120, 1)
+        state_size = 248
+        self.model = Actor(state_size, 1)
         self.model.load_state_dict(model_dict)
         self.model = self.model.to(self.device)
         self.model.eval()
+        self.satellite_context = self.load_embeddings()
+        self.satellite_idx = 0 # NOTE: assume 2 minute satellite calls with a max of 120 steps. Each idx corresponds to 1 second.
+        self.inference_counter = 0  # NOTE: we need to keep track of the number of inference steps since we don't have a clock. 1 inf step = 50 ms --> 20 inf steps per second.
+
+    def load_embeddings(self):
+        # NOTE: if we use raw satellite features, we need to normalize
+        if os.path.exists("/opt/home_dir/AlphaRTC/scripts/embeddings/embeddings.pt"):
+            embeddings = torch.load("/opt/home_dir/AlphaRTC/scripts/embeddings/embeddings.pt", weights_only=False)
+            embeddings = embeddings[5:, :] # NOTE: ignore the first 5 seconds
+        else:
+            embeddings = torch.ones(120, 64) * -1 # NOTE: if embeddings.pt doesn't exist, we use empty satellite features  
+        return embeddings
 
     def report_states(self, stats: dict):
         '''
@@ -131,7 +144,10 @@ class Estimator(object):
 
     def get_estimated_bandwidth(self)->int:
         self.process_features()
-        state = self.get_state()
+        self.inference_counter += 1 # Increment inference counter
+        state = self.get_state() # transport features
+        sat_context = self.get_satellite_context() # satellite features
+        state = torch.cat([state, sat_context], dim=-1) # concatenate satellite and transport features
         with torch.no_grad():
             self.bwe = self.model(state)
         with open("/opt/home_dir/AlphaRTC/scripts/estimator_debug.log", "a") as f:
@@ -148,6 +164,14 @@ class Estimator(object):
         bwe_mbps = np.clip(np.exp(log_bwe_mbps), min_mbps, max_mbps)
         bwe_bps = int(bwe_mbps * 1e6)
         return bwe_bps
+
+    def get_satellite_context(self):
+        if self.inference_counter > 0 and self.inference_counter % 20 == 0:
+            self.satellite_idx += 1
+            self.satellite_idx = min(self.satellite_idx, self.satellite_context.shape[0] - 2)
+        current_context = self.satellite_context[self.satellite_idx, :].reshape(1, -1)
+        next_context = self.satellite_context[self.satellite_idx + 1, :].reshape(1, -1)
+        return torch.cat([current_context, next_context], dim=1)
     
     def get_state(self):
         # NOTE: The order of the arrays is important
