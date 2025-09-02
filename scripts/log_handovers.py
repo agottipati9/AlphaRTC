@@ -6,9 +6,11 @@ import datetime
 import cv2  # OpenCV for video writing
 import sys
 
+import argparse
+
 # Import the Starlink gRPC client from your provided library
 
-sys.path.insert(0,str(Path('./grpc/starlink-grpc-tools').resolve()))
+sys.path.insert(0,str(Path('/opt/home_dir/grpc/starlink-grpc-tools').resolve())) # /Users/silver/Desktop/alphartc_dockers/grpc/starlink-grpc-tools
 import starlink_grpc
 
 # --- Configuration ---
@@ -62,7 +64,7 @@ def pixel_distance(p1, p2):
 
 # --- Main Application Logic ---
 
-def main():
+def main(run_time):
     """
     Main loop to monitor the obstruction map, detect handovers based on centroid jumps,
     log satellite trajectories, and record a video of the map feed.
@@ -70,18 +72,18 @@ def main():
     print("Starting Starlink handover detector and visualizer...")
 
     # Setup output directory and files
-    output_dir = Path("/Users/silver/Desktop/alphartc_dockers/outputs")
+    output_dir = Path("/opt/home_dir/outputs") # /Users/silver/Desktop/alphartc_dockers/outputs 
     output_dir.mkdir(exist_ok=True)
-    arcs_file = output_dir / "satellite_arcs.json"
-    video_file = output_dir / VIDEO_FILENAME
+    # arcs_file = output_dir / "satellite_arcs.json"
+    # video_file = output_dir / VIDEO_FILENAME
     handover_indicator = output_dir / "handovers.npy"
     handover_indicator_ts = output_dir / "handovers_ts.npy"
 
-    # Initialize video writer using OpenCV
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    frame_size = (123, 123)
-    video_writer = cv2.VideoWriter(str(video_file), fourcc, VIDEO_FPS, frame_size)
-    print(f"Recording obstruction map video to: {video_file}")
+    # # Initialize video writer using OpenCV
+    # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    # frame_size = (123, 123)
+    # video_writer = cv2.VideoWriter(str(video_file), fourcc, VIDEO_FPS, frame_size)
+    # print(f"Recording obstruction map video to: {video_file}")
 
     prev_frame = None
     prev_second = None
@@ -99,9 +101,14 @@ def main():
     handover_bit = 0
     time.sleep(1)
 
+    # NOTE: for debugging
+    start_time = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+
     try:
         while True:
             timestamp = datetime.datetime.now(datetime.timezone.utc).timestamp()
+            if int(timestamp) - start_time >= run_time:
+                break
             seconds = int(timestamp) % 60
             frame = get_obstruction_map(context)
 
@@ -109,10 +116,10 @@ def main():
             if frame is None:
                 frame = prev_frame
 
-            # --- Video Recording Logic ---
-            frame_uint8 = frame.astype(np.uint8) * 255
-            vis_frame = cv2.cvtColor(frame_uint8, cv2.COLOR_GRAY2BGR)
-            video_writer.write(vis_frame)
+            # # --- Video Recording Logic ---
+            # frame_uint8 = frame.astype(np.uint8) * 255
+            # vis_frame = cv2.cvtColor(frame_uint8, cv2.COLOR_GRAY2BGR)
+            # video_writer.write(vis_frame)
 
             # --- Handover Detection Logic ---
             if prev_frame is not None:
@@ -126,9 +133,9 @@ def main():
                         all_arcs.append(current_arc)
 
                         # Save the collected trajectories
-                        with open(arcs_file, "w") as f:
-                            json.dump(all_arcs, f, indent=2)
-                        print(f"Handover detected at T={seconds}! Saved {len(all_arcs)} arcs to {arcs_file}")
+                        # with open(arcs_file, "w") as f:
+                        #     json.dump(all_arcs, f, indent=2)
+                        print(f"Handover detected at T={seconds}!")
                         handover_bit = 1
 
                         # Reset for the next satellite
@@ -147,15 +154,24 @@ def main():
                 handover_bit = 0
 
             prev_frame = frame
-            time.sleep(1 / VIDEO_FPS)
+            # time.sleep(1 / VIDEO_FPS)
 
     except KeyboardInterrupt:
         print("\nScript terminated by user.")
     finally:
         np.save(handover_indicator, np.array(handover_bits))
         np.save(handover_indicator_ts, np.array(handover_timestamps))
-        video_writer.release()
-        print(f"Video recording stopped. File saved to {video_file}")
+        # video_writer.release()
+        # print(f"Video recording stopped. File saved to {video_file}")
+        # NOTE: for debugging
+        print(f"{len(handover_bits)/60:.2f} minutes. {len(handover_timestamps)/60:.2f} minutes.")
+        end_time = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+        print(f"{(end_time - start_time)/60:.2f} minutes")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Collect handover data.")
+    parser.add_argument("--run_time", type=int, default=120,
+                        help="set the duration this script should run for.")
+    args = parser.parse_args()
+    run_time = int(args.run_time)
+    main(run_time)
